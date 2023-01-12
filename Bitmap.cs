@@ -1430,9 +1430,10 @@ namespace AForge
             }
             set
             {
-                if (Bytes == null)
-                    bytes = new byte[Stride * Height];
+                bytes = new byte[Stride * Height];
                 Marshal.Copy(value.ImageData, Bytes, 0, value.Stride * value.Height);
+                if (isRGB)
+                    SwitchRedBlue();
                 PixelFormat = value.PixelFormat;
                 SizeX = value.Width;
                 SizeY = value.Height;
