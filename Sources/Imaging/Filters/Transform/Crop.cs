@@ -113,7 +113,7 @@ namespace AForge.Imaging.Filters
 
             int srcStride = sourceData.Stride;
             int dstStride = destinationData.Stride;
-            int pixelSize = Image.GetPixelFormatSize( sourceData.PixelFormat ) / 8;
+            int pixelSize = Bitmap.GetPixelFormatSize( sourceData.PixelFormat ) / 8;
             int copySize  = copyWidth * pixelSize;
 
             // do the job

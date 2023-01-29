@@ -146,27 +146,12 @@ namespace AForge.Imaging
         /// copy of managed image. This means that managed image must stay locked for the time of using the instance
         /// of unamanged image.</note></remarks>
         /// 
-        public UnmanagedImage( System.Drawing.Imaging.BitmapData bitmapData )
+        public UnmanagedImage(BitmapData bitmapData )
         {
             this.imageData   = bitmapData.Scan0;
             this.width       = bitmapData.Width;
             this.height      = bitmapData.Height;
             this.stride      = bitmapData.Stride;
-            this.pixelFormat = bitmapData.PixelFormat;
-        }
-
-        /// <summary>
-        /// Initializes a new instance of the <see cref="UnmanagedImage"/> class.
-        /// </summary>
-        /// 
-        /// <param name="AForge.BitmapData">Locked AForge.Bitmap data.</param>
-        /// 
-        public UnmanagedImage(AForge.BitmapData bitmapData)
-        {
-            this.imageData = bitmapData.Scan0;
-            this.width = bitmapData.Width;
-            this.height = bitmapData.Height;
-            this.stride = bitmapData.Stride;
             this.pixelFormat = bitmapData.PixelFormat;
         }
 
@@ -1126,11 +1111,6 @@ namespace AForge.Imaging
         public static explicit operator AForge.Bitmap(UnmanagedImage v)
         {
             return new AForge.Bitmap(v);
-        }
-
-        public static explicit operator UnmanagedImage(Bitmap v)
-        {
-            throw new NotImplementedException();
         }
     }
 }

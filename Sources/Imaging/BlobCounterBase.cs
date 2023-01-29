@@ -387,7 +387,7 @@ namespace AForge.Imaging
         /// 
         /// <exception cref="UnsupportedImageFormatException">Unsupported pixel format of the source image.</exception>
         /// 
-        public void ProcessImage( System.Drawing.Imaging.BitmapData imageData )
+        public void ProcessImage( BitmapData imageData )
         {
             // do actual objects map building
             ProcessImage( new UnmanagedImage( imageData ) );

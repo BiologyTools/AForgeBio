@@ -59,7 +59,7 @@ namespace AForge.Imaging
         {
             CheckPixelFormat( image.PixelFormat );
 
-            int pixelSize = System.Drawing.Image.GetPixelFormatSize( image.PixelFormat ) / 8;
+            int pixelSize = Bitmap.GetPixelFormatSize( image.PixelFormat ) / 8;
 
             // image dimension
             int imageWidth  = image.Width;
@@ -203,7 +203,7 @@ namespace AForge.Imaging
         {
             CheckPixelFormat( image.PixelFormat );
 
-            int pixelSize = System.Drawing.Image.GetPixelFormatSize( image.PixelFormat ) / 8;
+            int pixelSize = Bitmap.GetPixelFormatSize( image.PixelFormat ) / 8;
 
             // image dimension
             int imageWidth  = image.Width;
@@ -264,7 +264,7 @@ namespace AForge.Imaging
 
             CheckPixelFormat( image.PixelFormat );
 
-            int pixelSize = System.Drawing.Image.GetPixelFormatSize( image.PixelFormat ) / 8;
+            int pixelSize = Bitmap.GetPixelFormatSize( image.PixelFormat ) / 8;
 
             // image dimension
             int imageWidth  = image.Width;

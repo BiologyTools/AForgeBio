@@ -81,7 +81,7 @@ namespace AForge.Imaging.Filters
             int width   = sourceData.Width;
             int height  = sourceData.Height;
 
-            int pixelSize = Image.GetPixelFormatSize( sourceData.PixelFormat ) / 8;
+            int pixelSize = Bitmap.GetPixelFormatSize( sourceData.PixelFormat ) / 8;
             int srcStride = sourceData.Stride;
             int dstOffset = destinationData.Stride - pixelSize * newWidth;
             double xFactor = (double) width / newWidth;

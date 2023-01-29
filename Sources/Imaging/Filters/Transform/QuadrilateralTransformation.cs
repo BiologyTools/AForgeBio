@@ -295,7 +295,7 @@ namespace AForge.Imaging.Filters
             int dstWidth  = destinationData.Width;
             int dstHeight = destinationData.Height;
 
-            int pixelSize = Image.GetPixelFormatSize( sourceData.PixelFormat ) / 8;
+            int pixelSize = Bitmap.GetPixelFormatSize( sourceData.PixelFormat ) / 8;
             int srcStride = sourceData.Stride;
             int dstStride = destinationData.Stride;
             int offset = dstStride - dstWidth * pixelSize;

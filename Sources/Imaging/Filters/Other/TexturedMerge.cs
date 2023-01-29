@@ -180,7 +180,7 @@ namespace AForge.Imaging.Filters
                 heightToProcess = Math.Min( height, texture.GetLength( 0 ) );
             }
 
-            int pixelSize = Image.GetPixelFormatSize( image.PixelFormat ) / 8;
+            int pixelSize = Bitmap.GetPixelFormatSize( image.PixelFormat ) / 8;
             int srcOffset = image.Stride - widthToProcess * pixelSize;
             int ovrOffset = overlay.Stride - widthToProcess * pixelSize;
 

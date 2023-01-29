@@ -184,7 +184,7 @@ namespace AForge.Imaging
                 else
                 {
                     // 24 or 32 bpp color image
-                    int pixelSize = System.Drawing.Image.GetPixelFormatSize( image.PixelFormat ) / 8; 
+                    int pixelSize = Bitmap.GetPixelFormatSize( image.PixelFormat ) / 8; 
 
                     byte* ptr = null;
 

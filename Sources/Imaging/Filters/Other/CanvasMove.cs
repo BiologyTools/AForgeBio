@@ -189,7 +189,7 @@ namespace AForge.Imaging.Filters
         ///
         protected override void ProcessFilter( UnmanagedImage image )
         {
-            int pixelSize = Image.GetPixelFormatSize( image.PixelFormat ) / 8;
+            int pixelSize = Bitmap.GetPixelFormatSize( image.PixelFormat ) / 8;
 
             switch ( pixelSize )
             {
@@ -209,7 +209,7 @@ namespace AForge.Imaging.Filters
         // Process the filter on the image with 8 bits per color channel
         private unsafe void ProcessFilter8bpc( UnmanagedImage image )
         {
-            int pixelSize = Image.GetPixelFormatSize( image.PixelFormat ) / 8;
+            int pixelSize = Bitmap.GetPixelFormatSize( image.PixelFormat ) / 8;
             bool is32bpp = ( pixelSize == 4 );
 
             // get image width and height
@@ -315,7 +315,7 @@ namespace AForge.Imaging.Filters
         // Process the filter on the image with 16 bits per color channel
         private unsafe void ProcessFilter16bpc( UnmanagedImage image )
         {
-            int pixelSize = Image.GetPixelFormatSize( image.PixelFormat ) / 8;
+            int pixelSize = Bitmap.GetPixelFormatSize( image.PixelFormat ) / 8;
             bool is64bpp = ( pixelSize == 8 );
 
             // pad fill colours to 16-bits

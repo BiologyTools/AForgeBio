@@ -123,7 +123,7 @@ namespace AForge.Imaging.Filters
         /// 
         protected override unsafe void ProcessFilter( UnmanagedImage source, UnmanagedImage destination, Rectangle rect )
         {
-            int pixelSize  = Image.GetPixelFormatSize( source.PixelFormat ) / 8;
+            int pixelSize  = Bitmap.GetPixelFormatSize( source.PixelFormat ) / 8;
             int pixelSize2 = pixelSize * 2;
 
             // processing start and stop X,Y positions

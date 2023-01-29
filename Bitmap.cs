@@ -12,10 +12,45 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Runtime.Serialization;
 using System.Text;
-using System.Drawing.Imaging;
+using Gtk;
+using static System.Net.Mime.MediaTypeNames;
 
 namespace AForge
 {
+    public enum PixelFormat
+    {
+        Indexed,
+        Format1bppIndexed,
+        Format4bppIndexed,
+        Format8bppIndexed,
+        Format16bppGrayScale,
+        Format24bppRgb,
+        Format32bppArgb,
+        Format32bppRgb,
+        Format32bppPArgb,
+        Format48bppRgb,
+        Format64bppArgb,
+        Format64bppPArgb,
+    }
+    public enum RotateFlipType
+    {
+        Rotate180FlipNone,
+        Rotate180FlipX,
+        Rotate180FlipXY,
+        Rotate180FlipY,
+        Rotate270FlipNone,
+        Rotate270FlipX,
+        Rotate270FlipXY,
+        Rotate270FlipY,
+        Rotate90FlipNone,
+        Rotate90FlipX,
+        Rotate90FlipXY,
+        Rotate90FlipY,
+        RotateNoneFlipNone,
+        RotateNoneFlipX,
+        RotateNoneFlipXY,
+        RotateNoneFlipY,
+    }
     public struct ZCT
     {
         public int Z, C, T;
@@ -225,7 +260,7 @@ namespace AForge
         {
             if (bitsPerPixel == 8)
             {
-                System.Drawing.Color c = System.Drawing.Color.FromArgb((byte)col.R, (byte)col.G, (byte)col.B);
+                Color c = System.Drawing.Color.FromArgb((byte)col.R, (byte)col.G, (byte)col.B);
                 return c;
             }
             else
@@ -1292,6 +1327,27 @@ namespace AForge
         }
         internal float horizontalRes, verticalRes;
         internal ColorPalette palette = new ColorPalette();
+#if DEBUG
+        public Gdk.Pixbuf ClipboardImage
+        {
+            get
+            {
+                Gdk.Pixbuf pixbuf = new Gdk.Pixbuf(RGBBytes, true, 8, Width, Height, Width * 4);
+                // Get the default clipboard
+                var clipboard = Gtk.Clipboard.Get(Gdk.Atom.Intern("CLIPBOARD", false));
+                // Set the image on the clipboard
+                clipboard.Clear();
+
+                Gtk.TargetList targets = new Gtk.TargetList();
+                targets.AddImageTargets(0, true);
+                clipboard.SetWithData(((TargetEntry[])targets), (clipboard, selectionData, info) => {
+                    selectionData.SetPixbuf(pixbuf);
+                }, null);
+
+                return pixbuf;
+            }
+        }
+#endif
         public string ID;
         public string File
         {
@@ -1439,59 +1495,25 @@ namespace AForge
                 SizeY = value.Height;
             }
         }
-        /*
-        public System.Drawing.Image Image
-        {
-            /*
-            get
-            {
-                if(Environment.OSVersion.Platform == PlatformID.Unix || Environment.OSVersion.Platform == PlatformID.MacOSX)
-                {
-                    return ImageRGB;
-                }
-                else
-                    return GetBitmap(SizeX, SizeY, Stride, PixelFormat, Bytes);
-            }
-            
-            set
-            {
-                Bitmap Bitmap;
-                Bitmap = (Bitmap)value;
-                if (!LittleEndian)
-                    Bitmap.RotateFlip(RotateFlipType.Rotate180FlipNone);
-                PixelFormat = value.PixelFormat;
-                SizeX = value.Width;
-                SizeY = value.Height;
-                bytes = GetBuffer(Bitmap, Stride);
-                if (LittleEndian)
-                    Array.Reverse(bytes);
-                Bitmap.Dispose();
-                Bitmap = null;
-                GC.Collect();
-            }
-        }
-        */
-        public System.Drawing.Image ImageRGB
-        {
-            get
-            {
-                return (System.Drawing.Image)GetBitmapRGB(SizeX, SizeY, PixelFormat, Bytes);
-            }
-            set
-            {
-                System.Drawing.Imaging.BitmapData bm = ((System.Drawing.Bitmap)value).LockBits(new Rectangle(0, 0, SizeX,SizeY),System.Drawing.Imaging.ImageLockMode.ReadWrite,PixelFormat);
-                Image = new UnmanagedImage(bm);
-                ((System.Drawing.Bitmap)value).UnlockBits(bm);
-                PixelFormat = value.PixelFormat;
-                SizeX = value.Width;
-                SizeY = value.Height;
-            }
-        }
         public byte[] RGBBytes
         {
             get
             {
-                return new Bitmap("",ImageRGB,new ZCT(),0).Bytes;
+                return GetBitmapRGB(SizeX, SizeY, PixelFormat, Bytes).Bytes;
+            }
+        }
+        public Bitmap ImageRGB
+        {
+            get
+            {
+                return GetBitmapRGB(SizeX, SizeY, PixelFormat, Bytes);
+            }
+            set
+            {
+                Marshal.Copy(value.Bytes, 0, Marshal.UnsafeAddrOfPinnedArrayElement(Bytes,0), value.Bytes.Length);
+                PixelFormat = value.PixelFormat;
+                SizeX = value.Width;
+                SizeY = value.Height;
             }
         }
         public unsafe IntPtr Data
@@ -1508,7 +1530,7 @@ namespace AForge
         {
             get
             {
-                return GetRGBData(SizeX, SizeY, PixelFormat, bytes);
+                return GetRGB32Data(SizeX, SizeY, PixelFormat, bytes);
             }
         }
         public Plane Plane
@@ -1532,6 +1554,24 @@ namespace AForge
                     return 6;
                 throw new InvalidDataException("Bio only supports 8, 16, 24, 32, and 48 bit images.");
             }
+        }
+        public static int GetPixelFormatSize(PixelFormat pixelFormat)
+        {
+            if (pixelFormat == PixelFormat.Format1bppIndexed)
+                return 1;
+            else if (pixelFormat == PixelFormat.Format4bppIndexed)
+                return 4;
+            else if (pixelFormat == PixelFormat.Format8bppIndexed)
+                return 8;
+            else if (pixelFormat == PixelFormat.Format16bppGrayScale)
+                return 16;
+            else if (pixelFormat == PixelFormat.Format24bppRgb)
+                return 8;
+            else if (pixelFormat == PixelFormat.Format32bppRgb || pixelFormat == PixelFormat.Format32bppArgb || pixelFormat == PixelFormat.Format32bppPArgb)
+                return 8;
+            else if (pixelFormat == PixelFormat.Format48bppRgb)
+                return 16;
+            throw new NotSupportedException();
         }
         public class ColorPalette
         {
@@ -1775,7 +1815,7 @@ namespace AForge
             Bitmap bf = new Bitmap(bfs.ID, bfs.SizeX, bfs.SizeY, PixelFormat.Format48bppRgb, bt, bfs.Coordinate, 0, bfs.Plane);
             return bf;
         }
-        public static System.Drawing.Bitmap GetRGBBitmap(Bitmap[] bfs, IntRange rr, IntRange rg, IntRange rb)
+        public static Bitmap GetRGBBitmap(Bitmap[] bfs, IntRange rr, IntRange rg, IntRange rb)
         {
             int stride;
             if (bfs[0].BitsPerPixel > 8)
@@ -1849,18 +1889,18 @@ namespace AForge
                 }
                 bf.Dispose();
             }
-            return (System.Drawing.Bitmap)GetBitmap(w, h, w * 3, PixelFormat.Format24bppRgb, bt).ToManagedImage().ImageRGB;
+            return new Bitmap(GetBitmap(w, h, w * 3, PixelFormat.Format24bppRgb, bt));
         }
-        public static UnmanagedImage GetEmissionBitmap(Bitmap bfs, IntRange rr, System.Drawing.Color col)
+        public static UnmanagedImage GetEmissionBitmap(Bitmap bfs, IntRange rr, Color col)
         {
             int stride;
             if (bfs.BitsPerPixel > 8)
                 stride = bfs.SizeX * 3 * 2;
             else
                 stride = bfs.SizeX * 3;
-            float r = (col.R / 255f);
-            float g = (col.G / 255f);
-            float b = (col.B / 255f);
+            float r = ((float)col.R / 255f);
+            float g = ((float)col.G / 255f);
+            float b = ((float)col.B / 255f);
 
             int w = bfs.SizeX;
             int h = bfs.SizeY;
@@ -1990,8 +2030,6 @@ namespace AForge
                     }
                 }
             }
-            bts = null;
-            Bitmap bmp;
             if (bfs.BitsPerPixel > 8)
                 return GetBitmap(w, h, w * 3, PixelFormat.Format24bppRgb, bt);
             else
@@ -2000,11 +2038,12 @@ namespace AForge
         public static UnmanagedImage GetEmissionBitmap(Bitmap[] bfs, Channel[] chans)
         {
             Bitmap bm = new Bitmap(bfs[0].SizeX, bfs[0].SizeY, PixelFormat.Format24bppRgb);
-            Merge m = new Merge(bm.Image);
+            Merge m = new Merge(bm);
             for (int i = 0; i < chans.Length; i++)
             {
                 UnmanagedImage b = GetEmissionBitmap(bfs[i], chans[i].range[0], chans[i].EmissionColor);
-                bm.Image = m.Apply(b);
+                m.OverlayImage = (Bitmap)b;
+                m.ApplyInPlace(bm);
             }
             return bm.Image;
         }
@@ -2115,19 +2154,66 @@ namespace AForge
                 }
             }
         }
-        public void RotateFlip(System.Drawing.RotateFlipType rot)
+        public void RotateFlip(RotateFlipType rot)
         {
-            throw new NotImplementedException();
+            if(rot == RotateFlipType.Rotate180FlipNone)
+            {
+                if (PixelFormat == PixelFormat.Format8bppIndexed)
+                {
+                    byte[] rotatedBuffer = new byte[Bytes.Length];
+                    for (int i = 0; i < Bytes.Length; i++)
+                    {
+                        rotatedBuffer[i] = Bytes[Bytes.Length - 1 - i];
+                    }
+                    Bytes = rotatedBuffer;
+                }
+                else if (PixelFormat == PixelFormat.Format16bppGrayScale)
+                {
+                    byte[] rotatedBuffer = new byte[Bytes.Length];
+                    for (int i = 0; i < Bytes.Length; i += 2)
+                    {
+                        int rotatedIndex = Bytes.Length - 2 - i;
+                        rotatedBuffer[i] = Bytes[rotatedIndex];
+                        rotatedBuffer[i + 1] = Bytes[rotatedIndex + 1];
+                    }
+                    Bytes = rotatedBuffer;
+                }
+                else if (PixelFormat == PixelFormat.Format24bppRgb)
+                {
+                    byte[] rotatedBuffer = new byte[Bytes.Length];
+                    for (int i = 0; i < Bytes.Length; i += 3)
+                    {
+                        int rotatedIndex = Bytes.Length - 3 - i;
+                        rotatedBuffer[i] = Bytes[rotatedIndex];
+                        rotatedBuffer[i + 1] = Bytes[rotatedIndex + 1];
+                        rotatedBuffer[i + 2] = Bytes[rotatedIndex + 2];
+                    }
+                    Bytes = rotatedBuffer;
+                }
+                else if (PixelFormat == PixelFormat.Format32bppArgb || PixelFormat == PixelFormat.Format32bppRgb || PixelFormat == PixelFormat.Format32bppPArgb)
+                {
+                    byte[] rotatedBuffer = new byte[Bytes.Length];
+                    for (int i = 0; i < Bytes.Length; i += 4)
+                    {
+                        int rotatedIndex = Bytes.Length - 4 - i;
+                        rotatedBuffer[i] = Bytes[rotatedIndex];
+                        rotatedBuffer[i + 1] = Bytes[rotatedIndex + 1];
+                        rotatedBuffer[i + 2] = Bytes[rotatedIndex + 2];
+                        rotatedBuffer[i + 3] = Bytes[rotatedIndex + 3];
+                    }
+                    Bytes = rotatedBuffer;
+                }
+            }
         }
-        public static unsafe System.Drawing.Bitmap GetBitmapRGB(int w, int h, PixelFormat px, byte[] bts)
+        public static unsafe Bitmap GetBitmapRGB(int w, int h, PixelFormat px, byte[] bts)
         {
             if (px == PixelFormat.Format32bppArgb)
             {
                 //opening a 8 bit per pixel jpg image
-                System.Drawing.Bitmap bmp = new System.Drawing.Bitmap(w, h, PixelFormat.Format32bppArgb);
+                Bitmap bmp = new Bitmap(w, h, PixelFormat.Format32bppArgb);
                 //creating the Bitmapdata and lock bits
-                System.Drawing.Rectangle rec = new System.Drawing.Rectangle(0, 0, w, h);
-                System.Drawing.Imaging.BitmapData bmd = bmp.LockBits(rec, System.Drawing.Imaging.ImageLockMode.ReadWrite, bmp.PixelFormat);
+                Rectangle rec = new Rectangle(0, 0, w, h);
+                BitmapData bmd = bmp.LockBits(rec, ImageLockMode.ReadWrite, bmp.PixelFormat);
                 //iterating through all the pixels in y direction
                 for (int y = 0; y < h; y++)
                 {
@@ -2152,10 +2238,10 @@ namespace AForge
             else if (px == PixelFormat.Format24bppRgb)
             {
                 //opening a 8 bit per pixel jpg image
-                System.Drawing.Bitmap bmp = new System.Drawing.Bitmap(w, h, PixelFormat.Format32bppArgb);
+                Bitmap bmp = new Bitmap(w, h, PixelFormat.Format32bppArgb);
                 //creating the Bitmapdata and lock bits
-                System.Drawing.Rectangle rec = new System.Drawing.Rectangle(0, 0, w, h);
-                System.Drawing.Imaging.BitmapData bmd = bmp.LockBits(rec, System.Drawing.Imaging.ImageLockMode.ReadWrite, bmp.PixelFormat);
+                Rectangle rec = new Rectangle(0, 0, w, h);
+                BitmapData bmd = bmp.LockBits(rec, ImageLockMode.ReadWrite, bmp.PixelFormat);
                 //iterating through all the pixels in y direction
                 for (int y = 0; y < h; y++)
                 {
@@ -2181,10 +2267,10 @@ namespace AForge
             if (px == PixelFormat.Format48bppRgb)
             {
                 //opening a 8 bit per pixel jpg image
-                System.Drawing.Bitmap bmp = new System.Drawing.Bitmap(w, h, PixelFormat.Format32bppArgb);
+                Bitmap bmp = new Bitmap(w, h, PixelFormat.Format32bppArgb);
                 //creating the Bitmapdata and lock bits
-                System.Drawing.Rectangle rec = new System.Drawing.Rectangle(0, 0, w, h);
-                System.Drawing.Imaging.BitmapData bmd = bmp.LockBits(rec, System.Drawing.Imaging.ImageLockMode.ReadWrite, bmp.PixelFormat);
+                Rectangle rec = new Rectangle(0, 0, w, h);
+                BitmapData bmd = bmp.LockBits(rec, ImageLockMode.ReadWrite, bmp.PixelFormat);
                 unsafe
                 {
                     //iterating through all the pixels in y direction
@@ -2215,10 +2301,10 @@ namespace AForge
             if (px == PixelFormat.Format8bppIndexed)
             {
                 //opening a 8 bit per pixel jpg image
-                System.Drawing.Bitmap bmp = new System.Drawing.Bitmap(w, h, PixelFormat.Format32bppArgb);
+                Bitmap bmp = new Bitmap(w, h, PixelFormat.Format32bppArgb);
                 //creating the Bitmapdata and lock bits
-                System.Drawing.Rectangle rec = new System.Drawing.Rectangle(0, 0, w, h);
-                System.Drawing.Imaging.BitmapData bmd = bmp.LockBits(rec, System.Drawing.Imaging.ImageLockMode.ReadWrite, bmp.PixelFormat);
+                Rectangle rec = new Rectangle(0, 0, w, h);
+                BitmapData bmd = bmp.LockBits(rec, ImageLockMode.ReadWrite, bmp.PixelFormat);
                 unsafe
                 {
                     //iterating through all the pixels in y direction
@@ -2247,10 +2333,10 @@ namespace AForge
             if (px == PixelFormat.Format16bppGrayScale)
             {
                 //opening a 8 bit per pixel jpg image
-                System.Drawing.Bitmap bmp = new System.Drawing.Bitmap(w, h, PixelFormat.Format32bppArgb);
+                Bitmap bmp = new Bitmap(w, h, PixelFormat.Format32bppArgb);
                 //creating the Bitmapdata and lock bits
-                System.Drawing.Rectangle rec = new System.Drawing.Rectangle(0, 0, w, h);
-                System.Drawing.Imaging.BitmapData bmd = bmp.LockBits(rec, System.Drawing.Imaging.ImageLockMode.ReadWrite, bmp.PixelFormat);
+                Rectangle rec = new Rectangle(0, 0, w, h);
+                BitmapData bmd = bmp.LockBits(rec, ImageLockMode.ReadWrite, bmp.PixelFormat);
                 unsafe
                 {
                     //iterating through all the pixels in y direction
@@ -2278,7 +2364,7 @@ namespace AForge
 
             throw new NotSupportedException("Pixelformat " + px + " is not supported.");
         }
-        public static unsafe IntPtr GetRGBData(int w, int h, PixelFormat px, byte[] bts)
+        public static unsafe IntPtr GetRGB32Data(int w, int h, PixelFormat px, byte[] bts)
         {
             if(px == PixelFormat.Format32bppArgb || px == PixelFormat.Format32bppRgb)
             {
@@ -2292,7 +2378,7 @@ namespace AForge
                 //opening a 8 bit per pixel jpg image
                 Bitmap bmp = new Bitmap(w, h, PixelFormat.Format32bppArgb);
                 //creating the Bitmapdata and lock bits
-                System.Drawing.Rectangle rec = new System.Drawing.Rectangle(0, 0, w, h);
+                Rectangle rec = new Rectangle(0, 0, w, h);
                 BitmapData bmd = bmp.LockBits(rec, ImageLockMode.ReadWrite, bmp.PixelFormat);
                 //iterating through all the pixels in y direction
                 for (int y = 0; y < h; y++)
@@ -2321,7 +2407,7 @@ namespace AForge
                 //opening a 8 bit per pixel jpg image
                 Bitmap bmp = new Bitmap(w, h, PixelFormat.Format32bppArgb);
                 //creating the Bitmapdata and lock bits
-                System.Drawing.Rectangle rec = new System.Drawing.Rectangle(0, 0, w, h);
+                Rectangle rec = new Rectangle(0, 0, w, h);
                 BitmapData bmd = bmp.LockBits(rec, ImageLockMode.ReadWrite, bmp.PixelFormat);
                 unsafe
                 {
@@ -2355,7 +2441,7 @@ namespace AForge
                 //opening a 8 bit per pixel jpg image
                 Bitmap bmp = new Bitmap(w, h, PixelFormat.Format32bppArgb);
                 //creating the Bitmapdata and lock bits
-                System.Drawing.Rectangle rec = new System.Drawing.Rectangle(0, 0, w, h);
+                Rectangle rec = new Rectangle(0, 0, w, h);
                 BitmapData bmd = bmp.LockBits(rec, ImageLockMode.ReadWrite, bmp.PixelFormat);
                 unsafe
                 {
@@ -2387,7 +2473,7 @@ namespace AForge
                 //opening a 8 bit per pixel jpg image
                 Bitmap bmp = new Bitmap(w, h, PixelFormat.Format32bppArgb);
                 //creating the Bitmapdata and lock bits
-                System.Drawing.Rectangle rec = new System.Drawing.Rectangle(0, 0, w, h);
+                Rectangle rec = new Rectangle(0, 0, w, h);
                 BitmapData bmd = bmp.LockBits(rec, ImageLockMode.ReadWrite, bmp.PixelFormat);
                 unsafe
                 {
@@ -2415,13 +2501,144 @@ namespace AForge
             }
             throw new NotSupportedException("Pixelformat " + px + " is not supported.");
         }
+        public static unsafe Bitmap GetRGB24Data(int w, int h, PixelFormat px, byte[] bts)
+        {
+            if (px == PixelFormat.Format24bppRgb)
+            {
+                return new Bitmap(w, h, px, bts, new ZCT(), "");
+            }
+            if (px == PixelFormat.Format32bppArgb)
+            {
+                //opening a 8 bit per pixel jpg image
+                Bitmap bmp = new Bitmap(w, h, PixelFormat.Format24bppRgb);
+                //creating the Bitmapdata and lock bits
+                Rectangle rec = new Rectangle(0, 0, w, h);
+                BitmapData bmd = bmp.LockBits(rec, ImageLockMode.ReadWrite, bmp.PixelFormat);
+                //iterating through all the pixels in y direction
+                for (int y = 0; y < h; y++)
+                {
+                    //getting the pixels of current row
+                    byte* row = (byte*)bmd.Scan0 + (y * bmd.Stride);
+                    int rowRGB = y * w * 3;
+                    //iterating through all the pixels in x direction
+                    for (int x = 0; x < w; x++)
+                    {
+                        int indexRGB = x * 4;
+                        int indexRGBA = x * 3;
+                        row[indexRGBA + 2] = bts[rowRGB + indexRGB + 0];//byte B
+                        row[indexRGBA + 1] = bts[rowRGB + indexRGB + 1];//byte G
+                        row[indexRGBA] = bts[rowRGB + indexRGB + 2];//byte R
+                    }
+                }
+                //unlocking bits and disposing image
+                bmp.UnlockBits(bmd);
+                return bmp;
+            }
+            else
+            if (px == PixelFormat.Format48bppRgb)
+            {
+                //opening a 8 bit per pixel jpg image
+                Bitmap bmp = new Bitmap(w, h, PixelFormat.Format24bppRgb);
+                //creating the Bitmapdata and lock bits
+                Rectangle rec = new Rectangle(0, 0, w, h);
+                BitmapData bmd = bmp.LockBits(rec, ImageLockMode.ReadWrite, bmp.PixelFormat);
+                unsafe
+                {
+                    //iterating through all the pixels in y direction
+                    for (int y = 0; y < h; y++)
+                    {
+                        //getting the pixels of current row
+                        byte* row = (byte*)bmd.Scan0 + (y * bmd.Stride);
+                        int rowRGB = y * w * 6;
+                        //iterating through all the pixels in x direction
+                        for (int x = 0; x < w; x++)
+                        {
+                            int indexRGB = x * 6;
+                            int indexRGBA = x * 3;
+                            int b = (int)((float)BitConverter.ToUInt16(bts, rowRGB + indexRGB) / 255);
+                            int g = (int)((float)BitConverter.ToUInt16(bts, rowRGB + indexRGB + 2) / 255);
+                            int r = (int)((float)BitConverter.ToUInt16(bts, rowRGB + indexRGB + 4) / 255);
+                            //row[indexRGBA + 3] = 255;//byte A
+                            row[indexRGBA + 0] = (byte)(b);//byte R
+                            row[indexRGBA + 1] = (byte)(g);//byte G
+                            row[indexRGBA + 2] = (byte)(r);//byte B
+                        }
+                    }
+                }
+                bmp.UnlockBits(bmd);
+                return bmp;
+            }
+            else
+            if (px == PixelFormat.Format8bppIndexed)
+            {
+                //opening a 8 bit per pixel jpg image
+                Bitmap bmp = new Bitmap(w, h, PixelFormat.Format24bppRgb);
+                //creating the Bitmapdata and lock bits
+                Rectangle rec = new Rectangle(0, 0, w, h);
+                BitmapData bmd = bmp.LockBits(rec, ImageLockMode.ReadWrite, bmp.PixelFormat);
+                unsafe
+                {
+                    //iterating through all the pixels in y direction
+                    for (int y = 0; y < h; y++)
+                    {
+                        //getting the pixels of current row
+                        byte* row = (byte*)bmd.Scan0 + (y * bmd.Stride);
+                        int rowRGB = y * w;
+                        //iterating through all the pixels in x direction
+                        for (int x = 0; x < w; x++)
+                        {
+                            int indexRGB = x;
+                            int indexRGBA = x * 3;
+                            byte b = bts[rowRGB + indexRGB];
+                            row[indexRGBA] = (byte)(b);//byte R
+                            row[indexRGBA + 1] = (byte)(b);//byte G
+                            row[indexRGBA + 2] = (byte)(b);//byte B
+                        }
+                    }
+                }
+                bmp.UnlockBits(bmd);
+                return bmp;
+            }
+            else
+            if (px == PixelFormat.Format16bppGrayScale)
+            {
+                //opening a 8 bit per pixel jpg image
+                Bitmap bmp = new Bitmap(w, h, PixelFormat.Format32bppArgb);
+                //creating the Bitmapdata and lock bits
+                Rectangle rec = new Rectangle(0, 0, w, h);
+                BitmapData bmd = bmp.LockBits(rec, ImageLockMode.ReadWrite, bmp.PixelFormat);
+                unsafe
+                {
+                    //iterating through all the pixels in y direction
+                    for (int y = 0; y < h; y++)
+                    {
+                        //getting the pixels of current row
+                        byte* row = (byte*)bmd.Scan0 + (y * bmd.Stride);
+                        int rowRGB = y * w * 2;
+                        //iterating through all the pixels in x direction
+                        for (int x = 0; x < w; x++)
+                        {
+                            int indexRGB = x * 2;
+                            int indexRGBA = x * 3;
+                            ushort b = (ushort)((float)BitConverter.ToUInt16(bts, rowRGB + indexRGB) / 255);
+                            row[indexRGBA + 2] = (byte)(b);//byte R
+                            row[indexRGBA + 1] = (byte)(b);//byte G
+                            row[indexRGBA] = (byte)(b);//byte B
+                        }
+                    }
+                }
+                bmp.UnlockBits(bmd);
+                return bmp;
+            }
+            throw new NotSupportedException("Pixelformat " + px + " is not supported.");
+        }
         public static Bitmap GetFiltered(int w, int h, int stride, PixelFormat px, byte[] bts, IntRange rr, IntRange rg, IntRange rb)
         {
             if (px == PixelFormat.Format24bppRgb)
             {
                 Bitmap bmp = new Bitmap(w, h, PixelFormat.Format24bppRgb);
                 //creating the Bitmapdata and lock bits
-                System.Drawing.Rectangle rec = new System.Drawing.Rectangle(0, 0, w, h);
+                Rectangle rec = new Rectangle(0, 0, w, h);
                 BitmapData bmd = bmp.LockBits(rec, ImageLockMode.ReadWrite, bmp.PixelFormat);
                 unsafe
                 {
@@ -2469,7 +2686,7 @@ namespace AForge
             {
                 Bitmap bmp = new Bitmap(w, h, PixelFormat.Format32bppRgb);
                 //creating the Bitmapdata and lock bits
-                System.Drawing.Rectangle rec = new System.Drawing.Rectangle(0, 0, w, h);
+                Rectangle rec = new Rectangle(0, 0, w, h);
                 BitmapData bmd = bmp.LockBits(rec, ImageLockMode.ReadWrite, bmp.PixelFormat);
                 unsafe
                 {
@@ -2518,7 +2735,7 @@ namespace AForge
                 //opening a 8 bit per pixel jpg image
                 Bitmap bmp = new Bitmap(w, h, PixelFormat.Format32bppArgb);
                 //creating the Bitmapdata and lock bits
-                System.Drawing.Rectangle rec = new System.Drawing.Rectangle(0, 0, w, h);
+                Rectangle rec = new Rectangle(0, 0, w, h);
                 BitmapData bmd = bmp.LockBits(rec, ImageLockMode.ReadWrite, bmp.PixelFormat);
                 unsafe
                 {
@@ -2565,7 +2782,7 @@ namespace AForge
                 //opening a 8 bit per pixel jpg image
                 Bitmap bmp = new Bitmap(w, h, PixelFormat.Format32bppArgb);
                 //creating the Bitmapdata and lock bits
-                System.Drawing.Rectangle rec = new System.Drawing.Rectangle(0, 0, w, h);
+                Rectangle rec = new Rectangle(0, 0, w, h);
                 BitmapData bmd = bmp.LockBits(rec, ImageLockMode.ReadWrite, bmp.PixelFormat);
                 unsafe
                 {
@@ -2601,7 +2818,7 @@ namespace AForge
                 //opening a 8 bit per pixel jpg image
                 Bitmap bmp = new Bitmap(w, h, PixelFormat.Format32bppArgb);
                 //creating the Bitmapdata and lock bits
-                System.Drawing.Rectangle rec = new System.Drawing.Rectangle(0, 0, w, h);
+                Rectangle rec = new Rectangle(0, 0, w, h);
                 BitmapData bmd = bmp.LockBits(rec, ImageLockMode.ReadWrite, bmp.PixelFormat);
                 unsafe
                 {
@@ -2640,7 +2857,7 @@ namespace AForge
         }
         public void Crop(Rectangle r)
         {
-            //This crop function supports 16 bit images unlike System.Drawing.Bitmap class.
+            //This crop function supports 16 bit images unlike Bitmap class.
             if (BitsPerPixel > 8)
             {
                 if (RGBChannelsCount == 1)
@@ -2814,6 +3031,7 @@ namespace AForge
             Bytes = bts;
             if (isRGB)
                 SwitchRedBlue();
+            stats = Statistics.FromBytes(this);
         }
         public Bitmap(int w, int h, PixelFormat px)
         {
@@ -2822,6 +3040,7 @@ namespace AForge
             pixelFormat = px;
             Coordinate = new ZCT();
             Bytes = new byte[h * Stride];
+            stats = Statistics.FromBytes(this);
         }
         public Bitmap(string file, int w, int h, PixelFormat px, byte[] bts, ZCT coord, int index, Plane plane)
         {
@@ -2834,6 +3053,7 @@ namespace AForge
             if (isRGB)
                 SwitchRedBlue();
             Plane = plane;
+            stats = Statistics.FromBytes(this);
         }
         public Bitmap(string file, int w, int h, PixelFormat px, byte[] bts, ZCT coord, int index, bool littleEndian)
         {
@@ -2845,6 +3065,7 @@ namespace AForge
             Bytes = bts;
             if (isRGB)
                 SwitchRedBlue();
+            stats = Statistics.FromBytes(this);
         }
         public Bitmap(string file, int w, int h, PixelFormat px, byte[] bts, ZCT coord, int index, bool littleEndian, Plane plane)
         {
@@ -2857,25 +3078,7 @@ namespace AForge
             if (isRGB)
                 SwitchRedBlue();
             Plane = plane;
-        }
-        public Bitmap(string file, System.Drawing.Image im, ZCT coord, int index)
-        {
-            ID = CreateID(file, index);
-            SizeX = im.Width;
-            SizeY = im.Height;
-            pixelFormat = im.PixelFormat;
-            Coordinate = coord;
-            ImageRGB = im;
-        }
-        public Bitmap(string file, System.Drawing.Image im, ZCT coord, int index, Plane pl)
-        {
-            ID = CreateID(file, index);
-            SizeX = im.Width;
-            SizeY = im.Height;
-            pixelFormat = im.PixelFormat;
-            Coordinate = coord;
-            ImageRGB = im;
-            Plane = pl;
+            stats = Statistics.FromBytes(this);
         }
         public Bitmap(string file, UnmanagedImage im, ZCT coord, int index)
         {
@@ -2887,6 +3090,7 @@ namespace AForge
             if (isRGB)
                 SwitchRedBlue();
             Image = im;
+            stats = Statistics.FromBytes(this);
         }
         public Bitmap(string file, UnmanagedImage im, ZCT coord, int index, Plane pl)
         {
@@ -2899,6 +3103,7 @@ namespace AForge
                 SwitchRedBlue();
             Image = im;
             Plane = pl;
+            stats = Statistics.FromBytes(this);
         }
         public Bitmap(int width, int height, int stride, PixelFormat pixelFormat, IntPtr imageData)
         {
@@ -2906,6 +3111,7 @@ namespace AForge
             SizeY= height;
             this.pixelFormat= pixelFormat;
             Marshal.Copy(imageData,bytes,0, bytes.Length);
+            stats = Statistics.FromBytes(this);
         }
         public Bitmap(UnmanagedImage im)
         {
@@ -2914,6 +3120,7 @@ namespace AForge
             pixelFormat = im.PixelFormat;
             Coordinate = new ZCT();
             Image = im;
+            stats = Statistics.FromBytes(this);
         }
         public Bitmap(int w, int h, PixelFormat px, byte[] bts, ZCT coord, string id)
         {
@@ -2925,6 +3132,7 @@ namespace AForge
             if (isRGB)
                 SwitchRedBlue();
             Bytes = bts;
+            stats = Statistics.FromBytes(this);
         }
         public static UnmanagedImage SwitchRedBlue(UnmanagedImage image)
         {
@@ -3027,25 +3235,11 @@ namespace AForge
         }
         public static UnmanagedImage To24Bit(Bitmap b)
         {
-            System.Drawing.Bitmap bm = new System.Drawing.Bitmap(b.Width, b.Height, PixelFormat.Format24bppRgb);
-            System.Drawing.Graphics g = System.Drawing.Graphics.FromImage(bm);
-            g.DrawImage(b.ImageRGB, 0, 0);
-            g.Dispose();
-            System.Drawing.Imaging.BitmapData bd = bm.LockBits(new Rectangle(0,0,bm.Width,bm.Height),System.Drawing.Imaging.ImageLockMode.ReadOnly,PixelFormat.Format24bppRgb);
-            UnmanagedImage u = new UnmanagedImage(bd);
-            bm.UnlockBits(bd);
-            return u;
+            return GetRGB24Data(b.Width, b.Height, b.PixelFormat, b.Bytes);
         }
         public static UnmanagedImage To32Bit(Bitmap b)
         {
-            System.Drawing.Bitmap bm = new System.Drawing.Bitmap(b.Width, b.Height, PixelFormat.Format32bppArgb);
-            System.Drawing.Graphics g = System.Drawing.Graphics.FromImage(bm);
-            g.DrawImage(b.ImageRGB, 0, 0);
-            g.Dispose();
-            System.Drawing.Imaging.BitmapData bd = bm.LockBits(new Rectangle(0, 0, bm.Width, bm.Height), System.Drawing.Imaging.ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
-            UnmanagedImage u = new UnmanagedImage(bd);
-            bm.UnlockBits(bd);
-            return u;
+            return b.ImageRGB;
         }
         public static UnmanagedImage SwitchChannels(Bitmap image, int c1, int c2)
         {
@@ -3091,15 +3285,12 @@ namespace AForge
             Bitmap bm = AForge.Imaging.Image.Convert8bppTo16bpp(this);
             Image = bm;
         }
-
+        /*
         public static explicit operator Bitmap(UnmanagedImage v)
         {
             return new Bitmap(v);
         }
-        public static explicit operator Bitmap(System.Drawing.Bitmap v)
-        {
-            return new Bitmap("", (System.Drawing.Image)v, new ZCT(), 0);
-        }
+        */
         public void ToRGB()
         {
             int stride;
@@ -3200,12 +3391,6 @@ namespace AForge
             file = null;
             GC.Collect();
         }
-
-        internal static int GetPixelFormatSize(PixelFormat pixelFormat)
-        {
-            throw new NotImplementedException();
-        }
-
         public static Bitmap operator /(Bitmap a, Bitmap b)
         {
             Bitmap bf = a.CopyInfo();

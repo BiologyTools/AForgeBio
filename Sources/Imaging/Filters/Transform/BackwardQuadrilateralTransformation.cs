@@ -288,7 +288,7 @@ namespace AForge.Imaging.Filters
             int dstWidth  = dstImage.Width;
             int dstHeight = dstImage.Height;
 
-            int pixelSize = Image.GetPixelFormatSize( srcImage.PixelFormat ) / 8;
+            int pixelSize = Bitmap.GetPixelFormatSize( srcImage.PixelFormat ) / 8;
             int srcStride = srcImage.Stride;
             int dstStride = dstImage.Stride;
 

@@ -381,7 +381,7 @@ namespace AForge.Imaging.Filters
             int stopX  = rect.Right;
             int stopY  = rect.Bottom;
 
-            int pixelSize = System.Drawing.Image.GetPixelFormatSize( source.PixelFormat ) / 8;
+            int pixelSize = Bitmap.GetPixelFormatSize( source.PixelFormat ) / 8;
             int kernelHalf = kernelSize / 2;
             int bytesInKernelRow = kernelSize * pixelSize;
 
@@ -535,7 +535,7 @@ namespace AForge.Imaging.Filters
             int stopX  = rect.Right;
             int stopY  = rect.Bottom;
 
-            int pixelSize = System.Drawing.Image.GetPixelFormatSize( source.PixelFormat ) / 8;
+            int pixelSize = Bitmap.GetPixelFormatSize( source.PixelFormat ) / 8;
             int kernelHalf = kernelSize / 2;
             int bytesInKernelRow = kernelSize * pixelSize;
 
@@ -688,7 +688,7 @@ namespace AForge.Imaging.Filters
             int stopX  = rect.Right;
             int stopY  = rect.Bottom;
 
-            int pixelSize = System.Drawing.Image.GetPixelFormatSize( source.PixelFormat ) / 8;
+            int pixelSize = Bitmap.GetPixelFormatSize( source.PixelFormat ) / 8;
             int kernelHalf = kernelSize / 2;
             int bytesInKernelRow = kernelSize * pixelSize;
 

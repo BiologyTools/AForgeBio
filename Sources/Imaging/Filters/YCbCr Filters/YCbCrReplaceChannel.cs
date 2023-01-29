@@ -212,7 +212,7 @@ namespace AForge.Imaging.Filters
                 throw new NullReferenceException( "Channel image was not specified." );
             }
 
-            int pixelSize = Image.GetPixelFormatSize( image.PixelFormat ) / 8;
+            int pixelSize = Bitmap.GetPixelFormatSize( image.PixelFormat ) / 8;
 
             int width   = image.Width;
             int height  = image.Height;

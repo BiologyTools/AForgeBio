@@ -149,7 +149,7 @@ namespace AForge.Imaging.Formats
             // use default .NET's image decoding routine
             map = FromFile( fileName );
 
-            imageInfo = new ImageInfo(map.Width, map.Height, Image.GetPixelFormatSize(map.PixelFormat ), 0, 1 );
+            imageInfo = new ImageInfo(map.Width, map.Height, Bitmap.GetPixelFormatSize(map.PixelFormat ), 0, 1 );
 
             return map;
         }
