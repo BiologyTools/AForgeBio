@@ -1325,7 +1325,8 @@ namespace AForge
             string s = filepath + sep + 'i' + sep + index;
             return s;
         }
-        internal float horizontalRes, verticalRes;
+        float horizontalRes = 96f;
+        float verticalRes = 96f;
         internal ColorPalette palette = new ColorPalette();
 #if DEBUG
         public Gdk.Pixbuf ClipboardImage
@@ -1335,15 +1336,7 @@ namespace AForge
                 Gdk.Pixbuf pixbuf = new Gdk.Pixbuf(RGBBytes, true, 8, Width, Height, Width * 4);
                 // Get the default clipboard
                 var clipboard = Gtk.Clipboard.Get(Gdk.Atom.Intern("CLIPBOARD", false));
-                // Set the image on the clipboard
-                clipboard.Clear();
-
-                Gtk.TargetList targets = new Gtk.TargetList();
-                targets.AddImageTargets(0, true);
-                clipboard.SetWithData(((TargetEntry[])targets), (clipboard, selectionData, info) => {
-                    selectionData.SetPixbuf(pixbuf);
-                }, null);
-
+                clipboard.Image = pixbuf;
                 return pixbuf;
             }
         }
@@ -1479,9 +1472,9 @@ namespace AForge
         {
             get
             {
-                fixed(byte* dat = Bytes)
+                fixed(byte* dat = PaddedBytes)
                 {
-                    return new AForge.Imaging.UnmanagedImage((IntPtr)dat, SizeX, SizeY, Stride, PixelFormat);
+                    return new AForge.Imaging.UnmanagedImage((IntPtr)dat, SizeX, SizeY, PaddedStride, PixelFormat);
                 }
             }
             set
@@ -1566,11 +1559,13 @@ namespace AForge
             else if (pixelFormat == PixelFormat.Format16bppGrayScale)
                 return 16;
             else if (pixelFormat == PixelFormat.Format24bppRgb)
-                return 8;
+                return 24;
             else if (pixelFormat == PixelFormat.Format32bppRgb || pixelFormat == PixelFormat.Format32bppArgb || pixelFormat == PixelFormat.Format32bppPArgb)
-                return 8;
+                return 32;
             else if (pixelFormat == PixelFormat.Format48bppRgb)
-                return 16;
+                return 48;
+            else if (pixelFormat == PixelFormat.Format64bppArgb || pixelFormat == PixelFormat.Format64bppPArgb)
+                return 64;
             throw new NotSupportedException();
         }
         public class ColorPalette
@@ -1716,15 +1711,28 @@ namespace AForge
                     }
                 }
             }
+            
+            bmpr.RotateFlip(RotateFlipType.Rotate180FlipNone);
+            bmpg.RotateFlip(RotateFlipType.Rotate180FlipNone);
+            bmpb.RotateFlip(RotateFlipType.Rotate180FlipNone);
+            bfs[0] = bmpr;
+            bfs[1] = bmpg;
+            bfs[2] = bmpb;
             bfs[0].file = file;
-            bfs[0].plane = plane;
+            if(plane!=null)
+                bfs[0].plane = plane;
             bfs[0].ID = CreateID(file, 0);
             bfs[1].file = file;
-            bfs[1].plane = plane;
+            if (plane != null)
+                bfs[1].plane = plane;
             bfs[1].ID = CreateID(file, 0);
             bfs[2].file = file;
-            bfs[2].plane = plane;
+            if (plane != null)
+                bfs[2].plane = plane;
             bfs[2].ID = CreateID(file, 0);
+            bfs[0].stats = Statistics.FromBytes(bfs[0]);
+            bfs[1].stats = Statistics.FromBytes(bfs[1]);
+            bfs[2].stats = Statistics.FromBytes(bfs[2]);
             return bfs;
         }
         public static Bitmap RGB16To48(Bitmap[] bfs)
@@ -2156,54 +2164,21 @@ namespace AForge
         }
         public void RotateFlip(RotateFlipType rot)
         {
-            if(rot == RotateFlipType.Rotate180FlipNone)
+            if (rot == RotateFlipType.Rotate180FlipNone)
             {
-                if (PixelFormat == PixelFormat.Format8bppIndexed)
+                byte[] rotatedBuffer = new byte[Bytes.Length];
+                for (int i = 0; i < Bytes.Length; i += PixelFormatSize)
                 {
-                    byte[] rotatedBuffer = new byte[Bytes.Length];
-                    for (int i = 0; i < Bytes.Length; i++)
+                    int rotatedIndex = Bytes.Length - PixelFormatSize - i;
+                    for (int p = 0; p < PixelFormatSize; p++)
                     {
-                        rotatedBuffer[i] = Bytes[Bytes.Length - 1 - i];
+                        rotatedBuffer[i + p] = Bytes[rotatedIndex + p];
                     }
-                    Bytes = rotatedBuffer;
                 }
-                else if (PixelFormat == PixelFormat.Format16bppGrayScale)
-                {
-                    byte[] rotatedBuffer = new byte[Bytes.Length];
-                    for (int i = 0; i < Bytes.Length; i += 2)
-                    {
-                        int rotatedIndex = Bytes.Length - 2 - i;
-                        rotatedBuffer[i] = Bytes[rotatedIndex];
-                        rotatedBuffer[i + 1] = Bytes[rotatedIndex + 1];
-                    }
-                    Bytes = rotatedBuffer;
-                }
-                else if (PixelFormat == PixelFormat.Format24bppRgb)
-                {
-                    byte[] rotatedBuffer = new byte[Bytes.Length];
-                    for (int i = 0; i < Bytes.Length; i += 3)
-                    {
-                        int rotatedIndex = Bytes.Length - 3 - i;
-                        rotatedBuffer[i] = Bytes[rotatedIndex];
-                        rotatedBuffer[i + 1] = Bytes[rotatedIndex + 1];
-                        rotatedBuffer[i + 2] = Bytes[rotatedIndex + 2];
-                    }
-                    Bytes = rotatedBuffer;
-                }
-                else if (PixelFormat == PixelFormat.Format32bppArgb || PixelFormat == PixelFormat.Format32bppRgb || PixelFormat == PixelFormat.Format32bppPArgb)
-                {
-                    byte[] rotatedBuffer = new byte[Bytes.Length];
-                    for (int i = 0; i < Bytes.Length; i += 4)
-                    {
-                        int rotatedIndex = Bytes.Length - 4 - i;
-                        rotatedBuffer[i] = Bytes[rotatedIndex];
-                        rotatedBuffer[i + 1] = Bytes[rotatedIndex + 1];
-                        rotatedBuffer[i + 2] = Bytes[rotatedIndex + 2];
-                        rotatedBuffer[i + 3] = Bytes[rotatedIndex + 3];
-                    }
-                    Bytes = rotatedBuffer;
-                }
+                Bytes = rotatedBuffer;
             }
+            else
+                throw new NotImplementedException("Rotating image by " + rot.ToString() + " is not implemented.");
         }
         public static unsafe Bitmap GetBitmapRGB(int w, int h, PixelFormat px, byte[] bts)
         {
@@ -3029,7 +3004,7 @@ namespace AForge
             pixelFormat = px;
             Coordinate = coord;
             Bytes = bts;
-            if (isRGB)
+            if (px == PixelFormat.Format48bppRgb)
                 SwitchRedBlue();
             stats = Statistics.FromBytes(this);
         }
@@ -3040,7 +3015,6 @@ namespace AForge
             pixelFormat = px;
             Coordinate = new ZCT();
             Bytes = new byte[h * Stride];
-            stats = Statistics.FromBytes(this);
         }
         public Bitmap(string file, int w, int h, PixelFormat px, byte[] bts, ZCT coord, int index, Plane plane)
         {
@@ -3050,7 +3024,7 @@ namespace AForge
             pixelFormat = px;
             Coordinate = coord;
             Bytes = bts;
-            if (isRGB)
+            if (px == PixelFormat.Format48bppRgb)
                 SwitchRedBlue();
             Plane = plane;
             stats = Statistics.FromBytes(this);
@@ -3063,7 +3037,7 @@ namespace AForge
             pixelFormat = px;
             Coordinate = coord;
             Bytes = bts;
-            if (isRGB)
+            if (px == PixelFormat.Format48bppRgb)
                 SwitchRedBlue();
             stats = Statistics.FromBytes(this);
         }
@@ -3075,7 +3049,7 @@ namespace AForge
             pixelFormat = px;
             Coordinate = coord;
             Bytes = bts;
-            if (isRGB)
+            if (px == PixelFormat.Format48bppRgb)
                 SwitchRedBlue();
             Plane = plane;
             stats = Statistics.FromBytes(this);
@@ -3087,7 +3061,7 @@ namespace AForge
             SizeY = im.Height;
             pixelFormat = im.PixelFormat;
             Coordinate = coord;
-            if (isRGB)
+            if (im.PixelFormat == PixelFormat.Format48bppRgb)
                 SwitchRedBlue();
             Image = im;
             stats = Statistics.FromBytes(this);
@@ -3099,7 +3073,7 @@ namespace AForge
             SizeY = im.Height;
             pixelFormat = im.PixelFormat;
             Coordinate = coord;
-            if (isRGB)
+            if (im.PixelFormat == PixelFormat.Format48bppRgb)
                 SwitchRedBlue();
             Image = im;
             Plane = pl;
@@ -3108,9 +3082,12 @@ namespace AForge
         public Bitmap(int width, int height, int stride, PixelFormat pixelFormat, IntPtr imageData)
         {
             SizeX = width;
-            SizeY= height;
+            SizeY = height;
             this.pixelFormat= pixelFormat;
-            Marshal.Copy(imageData,bytes,0, bytes.Length);
+            if (pixelFormat == PixelFormat.Format48bppRgb)
+                SwitchRedBlue();
+            bytes = new byte[stride * height];
+            Marshal.Copy(imageData, bytes, 0, stride * height);
             stats = Statistics.FromBytes(this);
         }
         public Bitmap(UnmanagedImage im)
@@ -3120,6 +3097,8 @@ namespace AForge
             pixelFormat = im.PixelFormat;
             Coordinate = new ZCT();
             Image = im;
+            if (im.PixelFormat == PixelFormat.Format48bppRgb)
+                SwitchRedBlue();
             stats = Statistics.FromBytes(this);
         }
         public Bitmap(int w, int h, PixelFormat px, byte[] bts, ZCT coord, string id)
@@ -3129,9 +3108,9 @@ namespace AForge
             SizeY = h;
             pixelFormat = px;
             Coordinate = coord;
-            if (isRGB)
-                SwitchRedBlue();
             Bytes = bts;
+            if (px == PixelFormat.Format48bppRgb)
+                SwitchRedBlue();
             stats = Statistics.FromBytes(this);
         }
         public static UnmanagedImage SwitchRedBlue(UnmanagedImage image)

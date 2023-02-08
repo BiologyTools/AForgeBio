@@ -16,13 +16,17 @@
     <PackageProjectUrl>https://github.com/BiologyTools/AForgeBio</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <RepositoryUrl>https://github.com/BiologyTools/AForgeBio</RepositoryUrl>
-    <PackageTags>AForge; Biology; Bio; </PackageTags>
+    <PackageTags>AForge; Biology; Bio; Microscopy;</PackageTags>
     <PackageLicenseExpression>GPL-2.0-only</PackageLicenseExpression>
     <PackageRequireLicenseAcceptance>True</PackageRequireLicenseAcceptance>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="GtkSharp" Version="3.24.24.38" />
+    <PackageReference Include="NuGet.Build.Tasks.Pack" Version="6.4.0">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
     <PackageReference Include="System.Drawing.Primitives" Version="4.3.0" />
   </ItemGroup>
 
