@@ -2222,6 +2222,7 @@ namespace AForge
             
             if (rot == RotateFlipType.RotateNoneFlipY || rot == RotateFlipType.Rotate90FlipY || rot == RotateFlipType.Rotate180FlipY || rot == RotateFlipType.Rotate270FlipY)
             {
+                rotatedBuffer = new byte[Bytes.Length];
                 for (int y = 0; y < Height; y++)
                 {
                     for (int x = 0; x < Width; x++)
@@ -2235,6 +2236,7 @@ namespace AForge
             }
             else if (rot == RotateFlipType.RotateNoneFlipX || rot == RotateFlipType.Rotate90FlipX || rot == RotateFlipType.Rotate180FlipX || rot == RotateFlipType.Rotate270FlipX)
             {
+                rotatedBuffer = new byte[Bytes.Length];
                 for (int y = 0; y < Height; y++)
                 {
                     for (int x = 0; x < Width; x++)
