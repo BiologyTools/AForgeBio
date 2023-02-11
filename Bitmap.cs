@@ -13,7 +13,6 @@ using System.Threading;
 using System.Runtime.Serialization;
 using System.Text;
 using Gtk;
-using static System.Net.Mime.MediaTypeNames;
 
 namespace AForge
 {
@@ -2174,9 +2173,10 @@ namespace AForge
         }
         public void RotateFlip(RotateFlipType rot)
         {
-            if (rot == RotateFlipType.Rotate180FlipNone)
+            byte[] rotatedBuffer = new byte[Bytes.Length];
+            int ps = (GetPixelFormatSize(pixelFormat) / 8);
+            if (rot == RotateFlipType.Rotate180FlipNone || rot == RotateFlipType.Rotate180FlipX || rot == RotateFlipType.Rotate180FlipY || rot == RotateFlipType.Rotate180FlipXY)
             {
-                byte[] rotatedBuffer = new byte[Bytes.Length];
                 for (int i = 0; i < Bytes.Length; i += PixelFormatSize)
                 {
                     int rotatedIndex = Bytes.Length - PixelFormatSize - i;
@@ -2187,8 +2187,66 @@ namespace AForge
                 }
                 Bytes = rotatedBuffer;
             }
-            else
-                throw new NotImplementedException("Rotating image by " + rot.ToString() + " is not implemented.");
+            else if (rot == RotateFlipType.Rotate90FlipNone || rot == RotateFlipType.Rotate90FlipX || rot == RotateFlipType.Rotate90FlipY || rot == RotateFlipType.Rotate90FlipXY)
+            {
+                for (int y = 0; y < Height; y++)
+                {
+                    for (int x = 0; x < Width; x++)
+                    {
+                        int sourceIndex = (y * Width + x) * ps;
+                        int targetIndex = ((Width - x - 1) * Height + y) * ps;
+                        Array.Copy(Bytes, sourceIndex, rotatedBuffer, targetIndex, ps);
+                    }
+                }
+                Bytes = rotatedBuffer;
+                int w = Width;
+                SizeX = Height;
+                SizeY = w;
+            }
+            else if (rot == RotateFlipType.Rotate270FlipNone || rot == RotateFlipType.Rotate270FlipX || rot == RotateFlipType.Rotate270FlipY || rot == RotateFlipType.Rotate270FlipXY)
+            {
+                for (int y = 0; y < Height; y++)
+                {
+                    for (int x = 0; x < Width; x++)
+                    {
+                        int sourceIndex = (y * Width + x) * ps;
+                        int targetIndex = (x * Height + Height - y - 1) * ps;
+                        Array.Copy(Bytes, sourceIndex, rotatedBuffer, targetIndex, ps);
+                    }
+                }
+                int w = Width;
+                SizeX = Height;
+                SizeY = w;
+                Bytes = rotatedBuffer;
+            }
+            
+            if (rot == RotateFlipType.RotateNoneFlipY || rot == RotateFlipType.Rotate90FlipY || rot == RotateFlipType.Rotate180FlipY || rot == RotateFlipType.Rotate270FlipY)
+            {
+                for (int y = 0; y < Height; y++)
+                {
+                    for (int x = 0; x < Width; x++)
+                    {
+                        int sourceIndex = (y * Width + x) * ps;
+                        int targetIndex = (y * Width + Width - x - 1) * ps;
+                        Array.Copy(Bytes, sourceIndex, rotatedBuffer, targetIndex, ps);
+                    }
+                }
+                Bytes = rotatedBuffer;
+            }
+            else if (rot == RotateFlipType.RotateNoneFlipX || rot == RotateFlipType.Rotate90FlipX || rot == RotateFlipType.Rotate180FlipX || rot == RotateFlipType.Rotate270FlipX)
+            {
+                for (int y = 0; y < Height; y++)
+                {
+                    for (int x = 0; x < Width; x++)
+                    {
+                        int sourceIndex = (y * Width + x) * ps;
+                        int targetIndex = ((Height - y - 1) * Width + x) * ps;
+                        Array.Copy(Bytes, sourceIndex, rotatedBuffer, targetIndex, ps);
+                    }
+                }
+                Bytes = rotatedBuffer;
+            }
+            
         }
         public static unsafe Bitmap GetBitmapRGB(int w, int h, PixelFormat px, byte[] bts)
         {
