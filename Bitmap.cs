@@ -251,6 +251,18 @@ namespace AForge
             else
             if (px == PixelFormat.Format48bppRgb)
             {
+                /*
+                byte[] br = BitConverter.GetBytes(R);
+                byte[] bg = BitConverter.GetBytes(G);
+                byte[] bb = BitConverter.GetBytes(B);
+                byte[] b = new byte[6];
+                b[0] = bb[1];
+                b[1] = bb[0];
+                b[2] = bg[1];
+                b[3] = bg[0];
+                b[4] = br[1];
+                b[5] = br[0];
+                */
                 return bytes;
             }
             throw new InvalidDataException("Pixel format: " + px.ToString() + " is not supported");
@@ -1301,12 +1313,12 @@ namespace AForge
             if (BitsPerPixel > 8)
             {
                 int index2 = ((y * stridex + x) * 6);
-                bytes[index2] = value.bytes[5];
-                bytes[index2 + 1] = value.bytes[4];
-                bytes[index2 + 2] = value.bytes[3];
-                bytes[index2 + 3] = value.bytes[2];
-                bytes[index2 + 4] = value.bytes[1];
-                bytes[index2 + 5] = value.bytes[0];
+                bytes[index2] = value.bytes[0];
+                bytes[index2 + 1] = value.bytes[1];
+                bytes[index2 + 2] = value.bytes[2];
+                bytes[index2 + 3] = value.bytes[3];
+                bytes[index2 + 4] = value.bytes[4];
+                bytes[index2 + 5] = value.bytes[5];
             }
             else
             {
@@ -1479,10 +1491,8 @@ namespace AForge
             }
             set
             {
-                bytes = new byte[Stride * Height];
+                bytes = new byte[value.Stride * value.Height];
                 Marshal.Copy(value.ImageData, Bytes, 0, value.Stride * value.Height);
-                if (isRGB)
-                    SwitchRedBlue();
                 PixelFormat = value.PixelFormat;
                 SizeX = value.Width;
                 SizeY = value.Height;
@@ -2138,9 +2148,9 @@ namespace AForge
             ExtractChannel cr = new ExtractChannel((short)0);
             ExtractChannel cg = new ExtractChannel((short)1);
             ExtractChannel cb = new ExtractChannel((short)2);
-            bfs[0].Image = cr.Apply(info.Image);
-            bfs[1].Image = cg.Apply(info.Image);
-            bfs[2].Image = cb.Apply(info.Image);
+            bfs[0] = cr.Apply(info);
+            bfs[1] = cg.Apply(info);
+            bfs[2] = cb.Apply(info);
             cr = null;
             cg = null;
             cb = null;
