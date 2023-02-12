@@ -9,8 +9,8 @@
 namespace AForge.Imaging.Filters
 {
     using System;
-    using System.Drawing;
-    using System.Drawing.Imaging;
+    
+    
 
     /// <summary>
     /// Image processing filter interface.

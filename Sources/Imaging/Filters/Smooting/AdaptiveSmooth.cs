@@ -14,8 +14,8 @@ namespace AForge.Imaging.Filters
 {
     using System;
     using System.Collections.Generic;
-    using System.Drawing;
-    using System.Drawing.Imaging;
+    
+    
 
     /// <summary>
     /// Adaptive Smoothing - noise removal with edges preserving.

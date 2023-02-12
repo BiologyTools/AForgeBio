@@ -9,7 +9,7 @@
 namespace AForge.Imaging.ColorReduction
 {
     using System;
-    using System.Drawing;
+    
     using AForge.Imaging;
 
     /// <summary>

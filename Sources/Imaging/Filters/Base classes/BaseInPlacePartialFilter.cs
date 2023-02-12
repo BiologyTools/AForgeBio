@@ -10,8 +10,8 @@ namespace AForge.Imaging.Filters
 {
     using System;
     using System.Collections.Generic;
-    using System.Drawing;
-    using System.Drawing.Imaging;
+    
+    
 
     /// <summary>
     /// Base class for filters, which may be applied directly to the source image or its part.

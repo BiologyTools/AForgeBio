@@ -9,8 +9,8 @@
 namespace AForge.Imaging
 {
     using System;
-    using System.Drawing;
-    using System.Drawing.Imaging;
+    
+    
     using System.Collections.Generic;
 
     /// <summary>
@@ -286,16 +286,16 @@ namespace AForge.Imaging
         /// <remarks><para>Allocate new image with specified attributes in unmanaged memory.</para>
         /// 
         /// <para><note>The method supports only
-        /// <see cref="System.Drawing.Imaging.PixelFormat">Format8bppIndexed</see>,
-        /// <see cref="System.Drawing.Imaging.PixelFormat">Format16bppGrayScale</see>,
-        /// <see cref="System.Drawing.Imaging.PixelFormat">Format24bppRgb</see>,
-        /// <see cref="System.Drawing.Imaging.PixelFormat">Format32bppRgb</see>,
-        /// <see cref="System.Drawing.Imaging.PixelFormat">Format32bppArgb</see>,
-        /// <see cref="System.Drawing.Imaging.PixelFormat">Format32bppPArgb</see>,
-        /// <see cref="System.Drawing.Imaging.PixelFormat">Format48bppRgb</see>,
-        /// <see cref="System.Drawing.Imaging.PixelFormat">Format64bppArgb</see> and
-        /// <see cref="System.Drawing.Imaging.PixelFormat">Format64bppPArgb</see> pixel formats.
-        /// In the case if <see cref="System.Drawing.Imaging.PixelFormat">Format8bppIndexed</see>
+        /// <see cref="Imaging.PixelFormat">Format8bppIndexed</see>,
+        /// <see cref="Imaging.PixelFormat">Format16bppGrayScale</see>,
+        /// <see cref="Imaging.PixelFormat">Format24bppRgb</see>,
+        /// <see cref="Imaging.PixelFormat">Format32bppRgb</see>,
+        /// <see cref="Imaging.PixelFormat">Format32bppArgb</see>,
+        /// <see cref="Imaging.PixelFormat">Format32bppPArgb</see>,
+        /// <see cref="Imaging.PixelFormat">Format48bppRgb</see>,
+        /// <see cref="Imaging.PixelFormat">Format64bppArgb</see> and
+        /// <see cref="Imaging.PixelFormat">Format64bppPArgb</see> pixel formats.
+        /// In the case if <see cref="Imaging.PixelFormat">Format8bppIndexed</see>
         /// format is specified, pallete is not not created for the image (supposed that it is
         /// 8 bpp grayscale image).
         /// </note></para>

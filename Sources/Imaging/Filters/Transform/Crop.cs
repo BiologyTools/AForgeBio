@@ -9,8 +9,8 @@ namespace AForge.Imaging.Filters
 {
     using System;
     using System.Collections.Generic;
-    using System.Drawing;
-    using System.Drawing.Imaging;
+    
+    
 
     /// <summary>
     /// Crop an image.
@@ -88,7 +88,7 @@ namespace AForge.Imaging.Filters
         /// 
         /// <returns>New image size - size of the destination image.</returns>
         /// 
-        protected override System.Drawing.Size CalculateNewImageSize( UnmanagedImage sourceData )
+        protected override Size CalculateNewImageSize( UnmanagedImage sourceData )
         {
             return new Size( rect.Width, rect.Height );
         }

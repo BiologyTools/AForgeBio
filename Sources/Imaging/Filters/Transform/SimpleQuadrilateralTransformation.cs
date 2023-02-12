@@ -10,8 +10,8 @@ namespace AForge.Imaging.Filters
 {
     using System;
     using System.Collections.Generic;
-    using System.Drawing;
-    using System.Drawing.Imaging;
+    
+    
 
     using AForge;
 
@@ -277,7 +277,7 @@ namespace AForge.Imaging.Filters
         /// 
         /// <exception cref="NullReferenceException">Source quadrilateral was not set.</exception>
         /// 
-        protected override System.Drawing.Size CalculateNewImageSize( UnmanagedImage sourceData )
+        protected override Size CalculateNewImageSize( UnmanagedImage sourceData )
         {
             if ( sourceQuadrilateral == null )
                 throw new NullReferenceException( "Source quadrilateral was not set." );

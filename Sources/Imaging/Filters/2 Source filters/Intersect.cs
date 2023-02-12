@@ -10,8 +10,8 @@ namespace AForge.Imaging.Filters
 {
     using System;
     using System.Collections.Generic;
-    using System.Drawing;
-    using System.Drawing.Imaging;
+    
+    
 
     /// <summary>
     /// Intersect filter - get MIN of pixels in two images.

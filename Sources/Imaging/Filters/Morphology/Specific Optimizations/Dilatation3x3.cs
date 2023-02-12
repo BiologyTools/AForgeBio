@@ -10,8 +10,8 @@ namespace AForge.Imaging.Filters
 {
     using System;
     using System.Collections.Generic;
-    using System.Drawing;
-    using System.Drawing.Imaging;
+    
+    
 
     /// <summary>
     /// Dilatation operator from Mathematical Morphology with 3x3 structuring element.

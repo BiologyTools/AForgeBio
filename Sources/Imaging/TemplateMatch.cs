@@ -9,7 +9,7 @@
 namespace AForge.Imaging
 {
     using System;
-    using System.Drawing;
+    
 
     /// <summary>
     /// Template match class keeps information about found template match. The class is

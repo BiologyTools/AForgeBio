@@ -10,7 +10,7 @@ namespace AForge.Imaging.ColorReduction
 {
     using System;
     using System.Collections.Generic;
-    using System.Drawing;
+    
     using AForge.Imaging;
 
     // Color cube used by Median Cut color quantization algorithm

@@ -9,8 +9,8 @@
 namespace AForge.Imaging
 {
     using System;
-    using System.Drawing;
-    using System.Drawing.Imaging;
+    
+    
 
     /// <summary>
     /// Blob counter based on recursion.

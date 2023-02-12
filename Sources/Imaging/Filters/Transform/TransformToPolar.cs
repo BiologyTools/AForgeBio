@@ -10,8 +10,8 @@ namespace AForge.Imaging.Filters
 {
     using System;
     using System.Collections.Generic;
-    using System.Drawing;
-    using System.Drawing.Imaging;
+    
+    
 
     /// <summary>
     /// Transform rectangle image into circle (to polar coordinates).
@@ -229,7 +229,7 @@ namespace AForge.Imaging.Filters
         /// 
         /// <returns>New image size - size of the destination image.</returns>
         /// 
-        protected override System.Drawing.Size CalculateNewImageSize( UnmanagedImage sourceData )
+        protected override Size CalculateNewImageSize( UnmanagedImage sourceData )
         {
             return ( useOriginalImageSize ) ? new Size( sourceData.Width, sourceData.Height ) : newSize;
         }

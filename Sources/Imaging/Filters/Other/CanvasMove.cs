@@ -8,9 +8,9 @@
 
 namespace AForge.Imaging.Filters
 {
-    using System.Drawing;
+    
     using System.Collections.Generic;
-    using System.Drawing.Imaging;
+    
 
     /// <summary>
     /// Move canvas to the specified point.

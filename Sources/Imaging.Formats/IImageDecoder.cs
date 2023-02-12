@@ -9,7 +9,7 @@ namespace AForge.Imaging.Formats
 {
     using System;
     using System.IO;
-    using System.Drawing;
+    
     using System.ComponentModel;
 
     /// <summary>

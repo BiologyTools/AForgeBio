@@ -10,8 +10,8 @@ namespace AForge.Imaging.Filters
 {
 	using System;
     using System.Collections.Generic;
-    using System.Drawing;
-	using System.Drawing.Imaging;
+    
+	
 
 	/// <summary>
 	/// Merge filter - get MAX of pixels in two images.

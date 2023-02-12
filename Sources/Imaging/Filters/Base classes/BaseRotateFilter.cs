@@ -8,8 +8,8 @@
 namespace AForge.Imaging.Filters
 {
     using System;
-    using System.Drawing;
-    using System.Drawing.Imaging;
+    
+    
 
     /// <summary>
     /// Base class for image rotation filters.
@@ -109,7 +109,7 @@ namespace AForge.Imaging.Filters
         /// 
         /// <returns>New image size - size of the destination image.</returns>
         /// 
-        protected override System.Drawing.Size CalculateNewImageSize( UnmanagedImage sourceData )
+        protected override Size CalculateNewImageSize( UnmanagedImage sourceData )
         {
             // return same size if original image size should be kept
             if ( keepSize )

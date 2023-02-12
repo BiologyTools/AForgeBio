@@ -8,14 +8,14 @@
 namespace AForge.Imaging
 {
     using System;
-    using System.Drawing;
+    
 
     /// <summary>
     /// RGB components.
     /// </summary>
     /// 
     /// <remarks><para>The class encapsulates <b>RGB</b> color components.</para>
-    /// <para><note><see cref="System.Drawing.Imaging.PixelFormat">PixelFormat.Format24bppRgb</see>
+    /// <para><note><see cref="Imaging.PixelFormat">PixelFormat.Format24bppRgb</see>
     /// actually means BGR format.</note></para>
     /// </remarks>
     /// 
@@ -62,9 +62,9 @@ namespace AForge.Imaging
         public byte Alpha;
 
         /// <summary>
-        /// <see cref="System.Drawing.Color">Color</see> value of the class.
+        /// <see cref="Color">Color</see> value of the class.
         /// </summary>
-        public System.Drawing.Color Color
+        public Color Color
         {
             get { return Color.FromArgb( Alpha, Red, Green, Blue ); }
             set
@@ -124,9 +124,9 @@ namespace AForge.Imaging
         /// Initializes a new instance of the <see cref="RGB"/> class.
         /// </summary>
         /// 
-        /// <param name="color">Initialize from specified <see cref="System.Drawing.Color">color.</see></param>
+        /// <param name="color">Initialize from specified <see cref="Color">color.</see></param>
         /// 
-        public RGB( System.Drawing.Color color )
+        public RGB( Color color )
         {
             this.Red   = color.R;
             this.Green = color.G;

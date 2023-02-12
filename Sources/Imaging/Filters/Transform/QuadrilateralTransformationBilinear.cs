@@ -10,8 +10,8 @@ namespace AForge.Imaging.Filters
 {
     using System;
     using System.Collections.Generic;
-    using System.Drawing;
-    using System.Drawing.Imaging;
+    
+    
 
     using AForge;
 
@@ -162,7 +162,7 @@ namespace AForge.Imaging.Filters
         /// 
         /// <exception cref="ArgumentException">The specified quadrilateral's corners are outside of the given image.</exception>
         /// 
-        protected override System.Drawing.Size CalculateNewImageSize( UnmanagedImage sourceData )
+        protected override Size CalculateNewImageSize( UnmanagedImage sourceData )
         {
             // perform checking of source corners - they must feet into the image
             foreach ( IntPoint point in baseFilter.SourceQuadrilateral )

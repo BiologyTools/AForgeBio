@@ -9,8 +9,8 @@
 namespace AForge.Imaging.ColorReduction
 {
     using System;
-    using System.Drawing;
-    using System.Drawing.Imaging;
+    
+    
 
     /// <summary>
     /// Base class for error diffusion color dithering, where error is diffused to 

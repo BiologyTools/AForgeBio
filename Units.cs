@@ -3,11 +3,72 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using System.Drawing;
 using System.Globalization;
 
 namespace AForge
 {
+    [Serializable]
+    public struct PointF
+    {
+        private float x, y;
+        public float X
+        {
+            set
+            {
+                x = value;
+            }
+            get
+            {
+                return x;
+            }
+        }
+        public float Y
+        {
+            set
+            {
+                y = value;
+            }
+            get
+            {
+                return y;
+            }
+        }
+
+        public PointF(float xx, float yy)
+        {
+            x = xx;
+            y = yy;
+        }
+
+        public static PointF Parse(string s)
+        {
+            string[] st = s.Split(',');
+            float xd = float.Parse(st[0], CultureInfo.InvariantCulture);
+            float yd = float.Parse(st[1], CultureInfo.InvariantCulture);
+            return new PointF(xd, yd);
+        }
+        public PointF ToPointF()
+        {
+            return new PointF((float)X, (float)Y);
+        }
+        public Point ToPointInt()
+        {
+            return new Point((int)X, (int)Y);
+        }
+        public static bool operator ==(PointF p1, PointF p2)
+        {
+            return (p1.X == p2.X && p1.Y == p2.Y);
+        }
+        public static bool operator !=(PointF p1, PointF p2)
+        {
+            return (p1.X != p2.X && p1.Y != p2.Y);
+        }
+
+        public override string ToString()
+        {
+            return X.ToString() + "," + Y.ToString();
+        }
+    }
     [Serializable]
     public struct PointD
     {
@@ -142,9 +203,9 @@ namespace AForge
         {
             return new PointF((float)X, (float)Y);
         }
-        public System.Drawing.Point ToPointInt()
+        public Point ToPointInt()
         {
-            return new System.Drawing.Point((int)X, (int)Y);
+            return new Point((int)X, (int)Y);
         }
         public static bool operator ==(PointD p1, PointD p2)
         {
@@ -449,5 +510,6 @@ namespace AForge
                 return false;
         }
     }
+
 
 }

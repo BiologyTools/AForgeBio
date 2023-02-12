@@ -10,8 +10,8 @@ namespace AForge.Imaging.ColorReduction
 {
     using System;
     using System.Collections.Generic;
-    using System.Drawing;
-    using System.Drawing.Imaging;
+    
+    
 
     /// <summary>
     /// Color dithering with a thresold matrix (ordered dithering).

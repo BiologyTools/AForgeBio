@@ -6,13 +6,13 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
-using System.Drawing;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Runtime.Serialization;
 using System.Text;
 using Gtk;
+
 
 namespace AForge
 {
@@ -198,14 +198,6 @@ namespace AForge
                 bytes[5] = bt[1];
             }
         }
-        public static ColorS FromColor(Color col)
-        {
-            float r = (((float)col.R) / 255) * ushort.MaxValue;
-            float g = (((float)col.G) / 255) * ushort.MaxValue;
-            float b = (((float)col.B) / 255) * ushort.MaxValue;
-            ColorS color = ColorS.FromVector(r, g, b);
-            return color;
-        }
         public static ColorS FromVector(float x, float y, float z)
         {
             ColorS color = new ColorS();
@@ -214,6 +206,19 @@ namespace AForge
             color.Gf = y;
             color.Bf = z;
             return color;
+        }
+        public static ColorS FromColor(Color col)
+        {
+            ColorS color = new ColorS();
+            color.bytes = new byte[6];
+            color.Rf = (float)col.R / 255;
+            color.Gf = (float)col.G / 255;
+            color.Bf = (float)col.B / 255;
+            return color;
+        }
+        public static Color ToColor(ColorS s)
+        {
+            return Color.FromArgb((int)(s.Rf * 255),(int)(s.Gf * 255),(int)(s.Bf * 255));
         }
         public byte[] GetBytes(PixelFormat px)
         {
@@ -250,38 +255,10 @@ namespace AForge
             else
             if (px == PixelFormat.Format48bppRgb)
             {
-                /*
-                byte[] br = BitConverter.GetBytes(R);
-                byte[] bg = BitConverter.GetBytes(G);
-                byte[] bb = BitConverter.GetBytes(B);
-                byte[] b = new byte[6];
-                b[0] = bb[1];
-                b[1] = bb[0];
-                b[2] = bg[1];
-                b[3] = bg[0];
-                b[4] = br[1];
-                b[5] = br[0];
-                */
                 return bytes;
             }
             throw new InvalidDataException("Pixel format: " + px.ToString() + " is not supported");
 
-        }
-        public static Color ToColor(ColorS col, int bitsPerPixel)
-        {
-            if (bitsPerPixel == 8)
-            {
-                Color c = System.Drawing.Color.FromArgb((byte)col.R, (byte)col.G, (byte)col.B);
-                return c;
-            }
-            else
-            {
-                int r = (int)(((float)col.R / 65535) * 255);
-                int g = (int)(((float)col.G / 65535) * 255);
-                int b = (int)(((float)col.B / 65535) * 255);
-                System.Drawing.Color c = System.Drawing.Color.FromArgb((byte)r, (byte)g, (byte)b);
-                return c;
-            }
         }
         public override string ToString()
         {
@@ -346,6 +323,82 @@ namespace AForge
             bytes = null;
         }
     }
+    public struct Color
+    {
+        public byte A;
+        public byte R;
+        public byte G;
+        public byte B;
+        public static Color FromArgb(int a,int r, int g, int b)
+        {
+            Color col = new Color();
+            col.R = (byte)r;
+            col.G = (byte)g;
+            col.B = (byte)b;
+            return col;
+        }
+        public static Color FromArgb(int r, int g, int b)
+        {
+            Color col = new Color();
+            col.R = (byte)r;
+            col.G = (byte)g;
+            col.B = (byte)b;
+            return col;
+        }
+        public static Color Black = FromArgb(255, 0, 0, 0);
+        public static Color White = FromArgb(255, 255, 255, 255);
+        public static Color Red = FromArgb(255, 255, 0, 0);
+        public static Color DarkRed = FromArgb(255, 150, 0, 0);
+        public static Color Green = FromArgb(255, 0, 255, 0);
+        public static Color DarkGreen = FromArgb(255, 0, 150, 0);
+        public static Color Blue = FromArgb(255, 0, 0, 255);
+        public static Color DarkBlue = FromArgb(255, 0, 0 ,150);
+        public static Color Magenta = FromArgb(255, 255, 0, 255);
+        public static Color DarkMagenta = FromArgb(255, 150, 0, 150);
+        public static Color Yellow = FromArgb(255, 255, 255, 0);
+        public static Color DarkYellow = FromArgb(255, 150, 150, 0);
+        public static Color Cyan = FromArgb(255, 0, 255, 255);
+        public static Color DarkCyan = FromArgb(255, 0, 150, 150);
+        public static Color Gray = FromArgb(255, 150, 150, 150);
+        public static Color DarkGray = FromArgb(255, 100, 100, 100);
+        public static Color LightGray = FromArgb(255, 200, 200, 200);
+        public static Color DarkKhaki = FromArgb(255, 189, 183, 107);
+        //TODO Set color values
+        public static Color Violet = FromArgb(255, 189, 183, 107);
+        public static Color Brown = FromArgb(255, 189, 183, 107);
+        public static Color Olive = FromArgb(255, 189, 183, 107);
+        public static Color Gold = FromArgb(255, 189, 183, 107);
+        public static Color Indigo = FromArgb(255, 189, 183, 107);
+        public static Color Ivory = FromArgb(255, 189, 183, 107);
+        public static Color HotPink = FromArgb(255, 189, 183, 107);
+        public static Color DarkSeaGreen = FromArgb(255, 189, 183, 107);
+        public static Color LimeGreen = FromArgb(255, 189, 183, 107);
+        public static Color Tomato = FromArgb(255, 189, 183, 107);
+        public static Color SteelBlue = FromArgb(255, 189, 183, 107);
+        public static Color SkyBlue = FromArgb(255, 189, 183, 107);
+        public static Color Silver = FromArgb(255, 189, 183, 107);
+        public static Color Salmon = FromArgb(255, 189, 183, 107);
+        public static Color SaddleBrown = FromArgb(255, 189, 183, 107);
+        public static Color RosyBrown = FromArgb(255, 189, 183, 107);
+        public static Color PowderBlue = FromArgb(255, 189, 183, 107);
+        public static Color Plum = FromArgb(255, 189, 183, 107);
+        public static Color PapayaWhip = FromArgb(255, 189, 183, 107);
+        public static Color Orange = FromArgb(255, 189, 183, 107);
+        public static bool operator ==(Color a, Color b)
+        {
+            if (a.R == b.R && a.G == b.G && a.B == b.B)
+                return true;
+            else
+                return false;
+        }
+        public static bool operator !=(Color a, Color b)
+        {
+            if (a.R == b.R && a.G == b.G && a.B == b.B)
+                return false;
+            else
+                return true;
+        }
+    }
     public struct RectangleD
     {
         private double x;
@@ -364,9 +417,9 @@ namespace AForge
             w = W;
             h = H;
         }
-        public System.Drawing.Rectangle ToRectangleInt()
+        public Rectangle ToRectangleInt()
         {
-            return new System.Drawing.Rectangle((int)X, (int)Y, (int)W, (int)H);
+            return new Rectangle((int)X, (int)Y, (int)W, (int)H);
         }
         public bool IntersectsWith(RectangleD p)
         {
@@ -395,6 +448,251 @@ namespace AForge
             return X.ToString() + ", " + Y.ToString() + ", " + W.ToString() + ", " + H.ToString();
         }
 
+    }
+    public struct RectangleF
+    {
+        private float x;
+        private float y;
+        private float w;
+        private float h;
+        public float X { get { return x; } set { x = value; } }
+        public float Y { get { return y; } set { y = value; } }
+        public float Width { get { return w; } set { w = value; } }
+        public float Height { get { return h; } set { h = value; } }
+
+        public RectangleF(float X, float Y, float W, float H)
+        {
+            x = X;
+            y = Y;
+            w = W;
+            h = H;
+        }
+        public Rectangle ToRectangleInt()
+        {
+            return new Rectangle((int)X, (int)Y, (int)Width, (int)Height);
+        }
+        public bool IntersectsWith(RectangleF p)
+        {
+            if (IntersectsWith(p.X, p.Y) || IntersectsWith(p.X + p.Width, p.Y) || IntersectsWith(p.X, p.Y + p.Height) || IntersectsWith(p.X + p.Width, p.Y + p.Height))
+                return true;
+            else
+                return false;
+        }
+        public bool IntersectsWith(PointF p)
+        {
+            return IntersectsWith(p.X, p.Y);
+        }
+        public bool IntersectsWith(float x, float y)
+        {
+            if (X <= x && (X + Width) >= x && Y <= y && (Y + Height) >= y)
+                return true;
+            else
+                return false;
+        }
+        public override string ToString()
+        {
+            return X.ToString() + ", " + Y.ToString() + ", " + Width.ToString() + ", " + Height.ToString();
+        }
+
+    }
+    public struct Rectangle
+    {
+        private int x;
+        private int y;
+        private int w;
+        private int h;
+        public int X { get { return x; } set { x = value; } }
+        public int Y { get { return y; } set { y = value; } }
+        public int Width { get { return w; } set { w = value; } }
+        public int Height { get { return h; } set { h = value; } }
+        public int Top { get { return x; } set { x = value; } }
+        public int Left { get { return y; } set { y = value; } }
+        public int Right { get { return x + w; } }
+        public int Bottom { get { return y + h; } }
+        public Rectangle(int X, int Y, int W, int H)
+        {
+            x = X;
+            y = Y;
+            w = W;
+            h = H;
+        }
+        public Rectangle ToRectangleInt()
+        {
+            return new Rectangle((int)X, (int)Y, (int)Width, (int)Height);
+        }
+        public bool IntersectsWith(RectangleD p)
+        {
+            if (IntersectsWith(p.X, p.Y) || IntersectsWith(p.X + p.W, p.Y) || IntersectsWith(p.X, p.Y + p.H) || IntersectsWith(p.X + p.W, p.Y + p.H))
+                return true;
+            else
+                return false;
+        }
+        public bool IntersectsWith(PointD p)
+        {
+            return IntersectsWith(p.X, p.Y);
+        }
+        public bool IntersectsWith(double x, double y)
+        {
+            if (X <= x && (X + Width) >= x && Y <= y && (Y + Height) >= y)
+                return true;
+            else
+                return false;
+        }
+        public Rectangle Intersect(Rectangle other)
+        {
+            int x1 = System.Math.Max(this.X, other.X);
+            int x2 = System.Math.Min(this.X + this.Width, other.X + other.Width);
+            int y1 = System.Math.Max(this.Y, other.Y);
+            int y2 = System.Math.Min(this.Y + this.Height, other.Y + other.Height);
+
+            if (x2 >= x1 && y2 >= y1)
+            {
+                return new Rectangle
+                {
+                    X = x1,
+                    Y = y1,
+                    Width = x2 - x1,
+                    Height = y2 - y1
+                };
+            }
+            else
+            {
+                return new Rectangle();
+            }
+        }
+        public static Rectangle Intersect(Rectangle r, Rectangle other)
+        {
+            return r.Intersect(other);
+        }
+        public bool Contains(int x, int y)
+        {
+            return (x >= this.X) &&
+                   (x < this.X + this.Width) &&
+                   (y >= this.Y) &&
+                   (y < this.Y + this.Height);
+        }
+        public void Inflate(int width, int height)
+        {
+            this.X -= width;
+            this.Y -= height;
+            this.Width += 2 * width;
+            this.Height += 2 * height;
+        }
+        public RectangleF ToRectangleF()
+        {
+            return new RectangleF((float)X, (float)Y, (float)Width, (float)Height);
+        }
+        public override string ToString()
+        {
+            return X.ToString() + ", " + Y.ToString() + ", " + Width.ToString() + ", " + Height.ToString();
+        }
+
+    }
+    public struct Size
+    {
+        int x, y;
+        public int Width
+        {
+            set
+            {
+                x = value;
+            }
+            get
+            {
+                return x;
+            }
+        }
+        public int Height
+        {
+            set
+            {
+                y = value;
+            }
+            get
+            {
+                return y;
+            }
+        }
+
+        public Size(int xx, int yy)
+        {
+            x = xx;
+            y = yy;
+        }
+
+        public static Size Parse(string s)
+        {
+            string[] st = s.Split(',');
+            int xd = int.Parse(st[0], CultureInfo.InvariantCulture);
+            int yd = int.Parse(st[1], CultureInfo.InvariantCulture);
+            return new Size(xd, yd);
+        }
+        public static bool operator ==(Size p1, Size p2)
+        {
+            return (p1.Width == p2.Width && p1.Height == p2.Width);
+        }
+        public static bool operator !=(Size p1, Size p2)
+        {
+            return (p1.Width != p2.Width && p1.Height != p2.Width);
+        }
+
+        public override string ToString()
+        {
+            return x.ToString() + "," + y.ToString();
+        }
+    }
+    public struct SizeF
+    {
+        float x, y;
+        public float Width
+        {
+            set
+            {
+                x = value;
+            }
+            get
+            {
+                return x;
+            }
+        }
+        public float Height
+        {
+            set
+            {
+                y = value;
+            }
+            get
+            {
+                return y;
+            }
+        }
+
+        public SizeF(float xx, float yy)
+        {
+            x = xx;
+            y = yy;
+        }
+
+        public static SizeF Parse(string s)
+        {
+            string[] st = s.Split(',');
+            int xd = int.Parse(st[0], CultureInfo.InvariantCulture);
+            int yd = int.Parse(st[1], CultureInfo.InvariantCulture);
+            return new SizeF(xd, yd);
+        }
+        public static bool operator ==(SizeF p1, SizeF p2)
+        {
+            return (p1.Width == p2.Width && p1.Height == p2.Width);
+        }
+        public static bool operator !=(SizeF p1, SizeF p2)
+        {
+            return (p1.Width != p2.Width && p1.Height != p2.Width);
+        }
+
+        public override string ToString()
+        {
+            return x.ToString() + "," + y.ToString();
+        }
     }
     public class Statistics
     {
@@ -823,7 +1121,7 @@ namespace AForge
             internal int index;
             internal string fluor;
             internal int samplesPerPixel;
-            internal System.Drawing.Color? color;
+            internal Color? color;
             internal int emission;
             internal int excitation;
             internal int exposure;
@@ -903,7 +1201,7 @@ namespace AForge
                 get { return samplesPerPixel; }
                 set { samplesPerPixel = value; }
             }
-            public System.Drawing.Color? Color
+            public Color? Color
             {
                 get { return color; }
                 set { color = value; }
@@ -993,7 +1291,7 @@ namespace AForge
                 set { id = value; }
             }
         }
-        public static System.Drawing.Color SpectralColor(double l) // RGB <0,1> <- lambda l <400,700> [nm]
+        public static Color SpectralColor(double l) // RGB <0,1> <- lambda l <400,700> [nm]
         {
             double t;
             double r = 0;
@@ -1012,7 +1310,7 @@ namespace AForge
             r *= 255;
             g *= 255;
             b *= 255;
-            return System.Drawing.Color.FromArgb(255, (int)r, (int)g, (int)b);
+            return AForge.Color.FromArgb(255, (int)r, (int)g, (int)b);
         }
         public string Name
         {
@@ -1071,12 +1369,12 @@ namespace AForge
                 range = new IntRange[info.samplesPerPixel];
             }
         }
-        public System.Drawing.Color? Color
+        public Color? Color
         {
             get { return info.color; }
             set { info.color = value; }
         }
-        public System.Drawing.Color EmissionColor
+        public Color EmissionColor
         {
             get { return SpectralColor(Emission); }
         }
@@ -3272,7 +3570,7 @@ namespace AForge
         }
         public static byte[] GetBuffer(Bitmap bmp, int stride)
         {
-            BitmapData data = bmp.LockBits(new System.Drawing.Rectangle(0, 0, bmp.Width, bmp.Height), AForge.ImageLockMode.ReadOnly, bmp.PixelFormat);
+            BitmapData data = bmp.LockBits(new Rectangle(0, 0, bmp.Width, bmp.Height), AForge.ImageLockMode.ReadOnly, bmp.PixelFormat);
             IntPtr ptr = data.Scan0;
             int length = data.Stride * bmp.Height;
             byte[] bytes = new byte[length];

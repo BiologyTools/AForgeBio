@@ -13,8 +13,8 @@ namespace AForge.Imaging
 {
     using System;
     using System.Collections;
-    using System.Drawing;
-    using System.Drawing.Imaging;
+    
+    
     
     /// <summary>
     /// Skew angle checker for scanned documents.

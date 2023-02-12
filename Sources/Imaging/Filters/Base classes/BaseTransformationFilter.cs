@@ -10,8 +10,8 @@ namespace AForge.Imaging.Filters
 {
     using System;
     using System.Collections.Generic;
-    using System.Drawing;
-    using System.Drawing.Imaging;
+    
+    
 
     /// <summary>
     /// Base class for filters, which may produce new image of different size as a
@@ -217,7 +217,7 @@ namespace AForge.Imaging.Filters
         /// 
         /// <returns>New image size - size of the destination image.</returns>
         /// 
-        protected abstract System.Drawing.Size CalculateNewImageSize( UnmanagedImage sourceData );
+        protected abstract Size CalculateNewImageSize( UnmanagedImage sourceData );
 
         /// <summary>
         /// Process the filter on the specified image.

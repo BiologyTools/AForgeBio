@@ -9,8 +9,8 @@
 namespace AForge.Imaging.ColorReduction
 {
     using System;
-    using System.Drawing;
-    using System.Drawing.Imaging;
+    
+    
 
     /// <summary>
     /// Color dithering using Jarvis, Judice and Ninke error diffusion.

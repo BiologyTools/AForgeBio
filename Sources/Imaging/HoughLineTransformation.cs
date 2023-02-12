@@ -10,8 +10,8 @@ namespace AForge.Imaging
 {
     using System;
     using System.Collections;
-    using System.Drawing;
-    using System.Drawing.Imaging;
+    
+    
 
     /// <summary>
     /// Hough line.
