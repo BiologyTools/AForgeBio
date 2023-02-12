@@ -3318,7 +3318,7 @@ namespace AForge
         }
         public Bitmap CopyInfo()
         {
-            Bitmap bf = new Bitmap(SizeX, SizeY, PixelFormat, null, Coordinate, ID);
+            Bitmap bf = new Bitmap(SizeX, SizeY, PixelFormat, new byte[Stride * SizeY], Coordinate, ID);
             bf.bytes = new byte[bf.Stride * bf.SizeY];
             bf.plane = Plane;
             return bf;
