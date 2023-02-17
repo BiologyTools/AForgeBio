@@ -19,6 +19,7 @@
     <PackageTags>AForge; Biology; Bio; Microscopy;</PackageTags>
     <PackageLicenseExpression>GPL-2.0-only</PackageLicenseExpression>
     <PackageRequireLicenseAcceptance>True</PackageRequireLicenseAcceptance>
+    <Platforms>AnyCPU;x64;ARM64</Platforms>
   </PropertyGroup>
 
   <ItemGroup>

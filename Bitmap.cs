@@ -12,6 +12,8 @@ using System.Threading;
 using System.Runtime.Serialization;
 using System.Text;
 using Gtk;
+using Gdk;
+using static System.Net.Mime.MediaTypeNames;
 
 
 namespace AForge
@@ -1644,8 +1646,13 @@ namespace AForge
             {
                 Gdk.Pixbuf pixbuf = new Gdk.Pixbuf(RGBBytes, true, 8, Width, Height, Width * 4);
                 // Get the default clipboard
-                var clipboard = Gtk.Clipboard.Get(Gdk.Atom.Intern("CLIPBOARD", false));
-                clipboard.Image = pixbuf;
+                var clipboard = Clipboard.Get(Gdk.Selection.Clipboard);
+                // Convert the image to a byte array
+                var imageData = pixbuf.SaveToBuffer("png");
+                // Convert the image data to Base64-encoded string
+                var imageString = Convert.ToBase64String(imageData);
+                // Set the image data as text to the clipboard
+                clipboard.Text = $"data:image/png;base64,{imageString}";
                 return pixbuf;
             }
         }
@@ -2204,18 +2211,18 @@ namespace AForge
                 }
                 bf.Dispose();
             }
-            return new Bitmap(GetBitmap(w, h, w * 3, PixelFormat.Format24bppRgb, bt));
+            return new Bitmap(GetBitmap(w, h, w * 3, PixelFormat.Format24bppRgb, bt, new ZCT(0,0,0)));
         }
-        public static UnmanagedImage GetEmissionBitmap(Bitmap bfs, IntRange rr, Color col)
+        public static Bitmap GetEmissionBitmap(Bitmap bfs, IntRange rr, Color col)
         {
             int stride;
             if (bfs.BitsPerPixel > 8)
                 stride = bfs.SizeX * 3 * 2;
             else
                 stride = bfs.SizeX * 3;
-            float r = ((float)col.R / 255f);
-            float g = ((float)col.G / 255f);
-            float b = ((float)col.B / 255f);
+            float r = (col.R / 255f);
+            float g = (col.G / 255f);
+            float b = (col.B / 255f);
 
             int w = bfs.SizeX;
             int h = bfs.SizeY;
@@ -2244,14 +2251,14 @@ namespace AForge
                         byte[] gbb = BitConverter.GetBytes(gs);
                         byte[] bbb = BitConverter.GetBytes(bs);
                         //R
-                        bts[rowRGB + indexRGB] = rbb[0];
-                        bts[rowRGB + indexRGB + 1] = rbb[1];
+                        bts[rowRGB + indexRGB] = bbb[0];
+                        bts[rowRGB + indexRGB + 1] = bbb[1];
                         //G
                         bts[rowRGB + indexRGB + 2] = gbb[0];
                         bts[rowRGB + indexRGB + 3] = gbb[1];
                         //B
-                        bts[rowRGB + indexRGB + 4] = bbb[0];
-                        bts[rowRGB + indexRGB + 5] = bbb[1];
+                        bts[rowRGB + indexRGB + 4] = rbb[0];
+                        bts[rowRGB + indexRGB + 5] = rbb[1];
                     }
                 }
             }
@@ -2345,22 +2352,24 @@ namespace AForge
                     }
                 }
             }
+            bts = null;
+            Bitmap bmp;
             if (bfs.BitsPerPixel > 8)
-                return GetBitmap(w, h, w * 3, PixelFormat.Format24bppRgb, bt);
+                return GetBitmap(w, h, w * 3, PixelFormat.Format24bppRgb, bt, bfs.Coordinate);
             else
-                return GetBitmap(w, h, w * 3 * 2, PixelFormat.Format24bppRgb, bt);
+                return GetBitmap(w, h, w * 3 * 2, PixelFormat.Format24bppRgb, bt, bfs.Coordinate);
         }
-        public static UnmanagedImage GetEmissionBitmap(Bitmap[] bfs, Channel[] chans)
+        public static Bitmap GetEmissionBitmap(Bitmap[] bfs, Channel[] chans)
         {
             Bitmap bm = new Bitmap(bfs[0].SizeX, bfs[0].SizeY, PixelFormat.Format24bppRgb);
             Merge m = new Merge(bm);
             for (int i = 0; i < chans.Length; i++)
             {
-                UnmanagedImage b = GetEmissionBitmap(bfs[i], chans[i].range[0], chans[i].EmissionColor);
-                m.OverlayImage = (Bitmap)b;
+                Bitmap b = GetEmissionBitmap(bfs[i], chans[i].range[0], chans[i].EmissionColor);
+                m.OverlayImage = b;
                 m.ApplyInPlace(bm);
             }
-            return bm.Image;
+            return bm;
         }
         public static Bitmap RGB8To24(Bitmap[] bfs)
         {
@@ -2453,21 +2462,15 @@ namespace AForge
             cb = null;
             return bfs;
         }
-        public static unsafe UnmanagedImage GetBitmap(int w, int h, int stride, PixelFormat px, byte[] bts)
+        public static unsafe Bitmap GetBitmap(int w, int h, int stride, PixelFormat px, byte[] bts, ZCT coord)
         {
-            fixed (byte* numPtr1 = bts)
-            {
                 if (stride % 4 == 0)
                 {
-                    return new UnmanagedImage(new IntPtr((void*)numPtr1), w, h, stride, px);
+                    return new Bitmap(w, h, px, bts, coord, "");//new UnmanagedImage(new IntPtr((void*)numPtr1), w, h, stride, px);
                 }
                 int newstride = GetStridePadded(stride);
                 byte[] newbts = GetPaddedBuffer(bts, w, h, stride, px);
-                fixed (byte* numPtr2 = newbts)
-                {
-                    return new UnmanagedImage(new IntPtr((void*)numPtr2), w, h, newstride, px);
-                }
-            }
+                return new Bitmap(w, h, px, newbts, coord, "");
         }
         public void RotateFlip(RotateFlipType rot)
         {
@@ -2627,9 +2630,9 @@ namespace AForge
                         {
                             int indexRGB = x * 6;
                             int indexRGBA = x * 4;
-                            int b = (int)((float)BitConverter.ToUInt16(bts, rowRGB + indexRGB) / 255);
-                            int g = (int)((float)BitConverter.ToUInt16(bts, rowRGB + indexRGB + 2) / 255);
-                            int r = (int)((float)BitConverter.ToUInt16(bts, rowRGB + indexRGB + 4) / 255);
+                            int b = (int)( ((float)BitConverter.ToUInt16(bts, rowRGB + indexRGB) / (float)ushort.MaxValue) * 255);
+                            int g = (int)( ((float)BitConverter.ToUInt16(bts, rowRGB + indexRGB + 2) / (float)ushort.MaxValue) * 255);
+                            int r = (int)( ((float)BitConverter.ToUInt16(bts, rowRGB + indexRGB + 4) / (float)ushort.MaxValue) * 255);
                             row[indexRGBA + 3] = 255;//byte A
                             row[indexRGBA + 2] = (byte)(b);//byte R
                             row[indexRGBA + 1] = (byte)(g);//byte G
@@ -2693,7 +2696,7 @@ namespace AForge
                         {
                             int indexRGB = x * 2;
                             int indexRGBA = x * 4;
-                            ushort b = (ushort)((float)BitConverter.ToUInt16(bts, rowRGB + indexRGB) / 255);
+                            int b = (int)(((float)BitConverter.ToUInt16(bts, rowRGB + indexRGB) / (float)ushort.MaxValue) * 255);
                             row[indexRGBA + 3] = 255;//byte A
                             row[indexRGBA + 2] = (byte)(b);//byte R
                             row[indexRGBA + 1] = (byte)(b);//byte G
