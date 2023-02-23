@@ -14,6 +14,8 @@ using System.Text;
 using Gtk;
 using Gdk;
 using static System.Net.Mime.MediaTypeNames;
+using Cairo;
+using Atk;
 
 
 namespace AForge
@@ -1652,7 +1654,7 @@ namespace AForge
                 // Convert the image data to Base64-encoded string
                 var imageString = Convert.ToBase64String(imageData);
                 // Set the image data as text to the clipboard
-                clipboard.Text = $"data:image/png;base64,{imageString}";
+                clipboard.Text = "data:image/png;base64," + imageString;
                 return pixbuf;
             }
         }
@@ -2137,81 +2139,73 @@ namespace AForge
             Bitmap bf = new Bitmap(bfs.ID, bfs.SizeX, bfs.SizeY, PixelFormat.Format48bppRgb, bt, bfs.Coordinate, 0, bfs.Plane);
             return bf;
         }
+        /// It takes a buffer of RGB data, and returns a bitmap
+        /// 
+        /// @param bfs an array of Bitmap objects.  The first one is the red channel, the second is the green channel, and the third is
+        /// the blue channel.
+        /// @param IntRange 
+        /// @param IntRange 
+        /// @param IntRange 
+        /// 
+        /// @return A Bitmap object.
         public static Bitmap GetRGBBitmap(Bitmap[] bfs, IntRange rr, IntRange rg, IntRange rb)
         {
-            int stride;
             if (bfs[0].BitsPerPixel > 8)
-                stride = bfs[0].SizeX * 6;
-            else
-                stride = bfs[0].SizeX * 3;
-            int w = bfs[0].SizeX;
-            int h = bfs[0].SizeY;
-            byte[] bt = new byte[h * w * 3];
-            if (bfs[0].BitsPerPixel == 8)
             {
-                Bitmap bf = Bitmap.RGB8To24(bfs);
-                //iterating through all the pixels in y direction
-                for (int y = 0; y < h; y++)
+                if (bfs[0].isRGB)
                 {
-                    int rowRGB = y * stride;
-                    //iterating through all the pixels in x direction
-                    for (int x = 0; x < w; x++)
-                    {
-                        int indexRGB = x * 3;
-                        int indexRGBA = x * 3;
-                        float ri = ((float)bf.Bytes[rowRGB + indexRGB] - rr.Min);
-                        if (ri < 0)
-                            ri = 0;
-                        ri = ri / rr.Max;
-                        float gi = ((float)bf.Bytes[rowRGB + indexRGB + 1] - rg.Min);
-                        if (gi < 0)
-                            gi = 0;
-                        gi = gi / rg.Max;
-                        float bi = ((float)bf.Bytes[rowRGB + indexRGB + 2] - rb.Min);
-                        if (bi < 0)
-                            bi = 0;
-                        bi = bi / rb.Max;
-                        bt[rowRGB + indexRGBA + 2] = (byte)(ri * 255);//byte R
-                        bt[rowRGB + indexRGBA + 1] = (byte)(gi * 255);//byte G
-                        bt[rowRGB + indexRGBA] = (byte)(bi * 255);//byte B
-                    }
+                    LevelsLinear16bpp filter16 = new LevelsLinear16bpp();
+                    filter16.InRed = rr;
+                    filter16.InGreen = rg;
+                    filter16.InBlue = rb;
+                    Bitmap[] bms = new Bitmap[3];
+                    bms[0] = filter16.Apply(bfs[0]);
+                    bms[1] = filter16.Apply(bfs[1]);
+                    bms[2] = filter16.Apply(bfs[2]);
+                    Bitmap bm = Bitmap.RGB16To48(bms);
+                    bm.SwitchRedBlue();
+                    return bm;
                 }
-                bf.Dispose();
+                else
+                {
+                    LevelsLinear16bpp filter16 = new LevelsLinear16bpp();
+                    Bitmap bm = Bitmap.RGB16To48(bfs);
+                    filter16.InRed = rr;
+                    filter16.InGreen = rg;
+                    filter16.InBlue = rb;
+                    Bitmap bmp = filter16.Apply(bm);
+                    bmp.SwitchRedBlue();
+                    return bmp;
+                }
             }
             else
             {
-                Bitmap bf = Bitmap.RGB16To48(bfs);
-                //iterating through all the pixels in y direction
-                for (int y = 0; y < h; y++)
+                if (bfs[0].isRGB)
                 {
-                    //getting the pixels of current row
-                    int rowRGB = y * w * 6;
-                    int row = y * w * 3;
-                    //iterating through all the pixels in x direction
-                    for (int x = 0; x < w; x++)
-                    {
-                        int indexRGB = x * 6;
-                        int indexRGBA = x * 3;
-                        float ri = ((float)BitConverter.ToUInt16(bf.Bytes, rowRGB + indexRGB) - rr.Min);
-                        if (ri < 0)
-                            ri = 0;
-                        ri = ri / rr.Max;
-                        float gi = ((float)BitConverter.ToUInt16(bf.Bytes, rowRGB + indexRGB + 2) - rg.Min);
-                        if (gi < 0)
-                            gi = 0;
-                        gi = gi / rg.Max;
-                        float bi = ((float)BitConverter.ToUInt16(bf.Bytes, rowRGB + indexRGB + 4) - rb.Min);
-                        if (bi < 0)
-                            bi = 0;
-                        bi = bi / rb.Max;
-                        bt[row + indexRGBA + 2] = (byte)(ri * 255);//byte R
-                        bt[row + indexRGBA + 1] = (byte)(gi * 255);//byte G
-                        bt[row + indexRGBA] = (byte)(bi * 255);//byte B
-                    }
+                    LevelsLinear filter8 = new LevelsLinear();
+                    filter8.InRed = rr;
+                    filter8.InGreen = rg;
+                    filter8.InBlue = rb;
+                    Bitmap[] bms = new Bitmap[3];
+                    bms[0] = filter8.Apply(bfs[0]);
+                    bms[1] = filter8.Apply(bfs[1]);
+                    bms[2] = filter8.Apply(bfs[2]);
+                    Bitmap bm = Bitmap.RGB16To48(bms);
+                    bm.SwitchRedBlue();
+                    return bm;
                 }
-                bf.Dispose();
+                else
+                {
+                    LevelsLinear filter8 = new LevelsLinear();
+                    Bitmap bm = Bitmap.RGB8To24(bfs);
+                    filter8.InRed = rr;
+                    filter8.InGreen = rg;
+                    filter8.InBlue = rb;
+                    Bitmap bmp = filter8.Apply(bm);
+                    bmp.SwitchRedBlue();
+                    return bmp;
+                }
             }
-            return new Bitmap(GetBitmap(w, h, w * 3, PixelFormat.Format24bppRgb, bt, new ZCT(0,0,0)));
         }
         public static Bitmap GetEmissionBitmap(Bitmap bfs, IntRange rr, Color col)
         {
@@ -2865,7 +2859,7 @@ namespace AForge
                 {
                     //getting the pixels of current row
                     byte* row = (byte*)bmd.Scan0 + (y * bmd.Stride);
-                    int rowRGB = y * w * 3;
+                    int rowRGB = y * w * 4;
                     //iterating through all the pixels in x direction
                     for (int x = 0; x < w; x++)
                     {
@@ -3583,15 +3577,15 @@ namespace AForge
 
             return bytes;
         }
-        public static UnmanagedImage To24Bit(Bitmap b)
+        public static Bitmap To24Bit(Bitmap b)
         {
             return GetRGB24Data(b.Width, b.Height, b.PixelFormat, b.Bytes);
         }
-        public static UnmanagedImage To32Bit(Bitmap b)
+        public static Bitmap To32Bit(Bitmap b)
         {
             return b.ImageRGB;
         }
-        public static UnmanagedImage SwitchChannels(Bitmap image, int c1, int c2)
+        public static Bitmap SwitchChannels(Bitmap image, int c1, int c2)
         {
             ExtractChannel cr = new ExtractChannel((short)c1);
             ExtractChannel cb = new ExtractChannel((short)c2);
@@ -3604,7 +3598,7 @@ namespace AForge
             replaceBFilter.ApplyInPlace(image.Image);
             rImage.Dispose();
             bImage.Dispose();
-            return image.Image;
+            return image;
         }
         public Bitmap Copy()
         {
