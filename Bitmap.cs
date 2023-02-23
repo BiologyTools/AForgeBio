@@ -2190,7 +2190,7 @@ namespace AForge
                     bms[0] = filter8.Apply(bfs[0]);
                     bms[1] = filter8.Apply(bfs[1]);
                     bms[2] = filter8.Apply(bfs[2]);
-                    Bitmap bm = Bitmap.RGB16To48(bms);
+                    Bitmap bm = Bitmap.RGB8To24(bms);
                     bm.SwitchRedBlue();
                     return bm;
                 }
@@ -2202,7 +2202,6 @@ namespace AForge
                     filter8.InGreen = rg;
                     filter8.InBlue = rb;
                     Bitmap bmp = filter8.Apply(bm);
-                    bmp.SwitchRedBlue();
                     return bmp;
                 }
             }
