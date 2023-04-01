@@ -3401,7 +3401,12 @@ namespace AForge
             pixelFormat = px;
             Coordinate = coord;
             Bytes = bts;
-            if (px == PixelFormat.Format48bppRgb)
+            if (!littleEndian)
+            {
+                Array.Reverse(Bytes);
+                RotateFlip(RotateFlipType.Rotate180FlipNone);
+            }
+            if (isRGB)
                 SwitchRedBlue();
             stats = Statistics.FromBytes(this);
         }
@@ -3413,7 +3418,12 @@ namespace AForge
             pixelFormat = px;
             Coordinate = coord;
             Bytes = bts;
-            if (px == PixelFormat.Format48bppRgb)
+            if (!littleEndian)
+            {
+                Array.Reverse(Bytes);
+                RotateFlip(RotateFlipType.Rotate180FlipNone);
+            }
+            if (isRGB)
                 SwitchRedBlue();
             Plane = plane;
             stats = Statistics.FromBytes(this);
