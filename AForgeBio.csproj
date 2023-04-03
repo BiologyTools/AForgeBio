@@ -21,6 +21,7 @@
     <PackageRequireLicenseAcceptance>True</PackageRequireLicenseAcceptance>
     <Platforms>AnyCPU;x64;ARM64</Platforms>
     <PlatformTarget>x64</PlatformTarget>
+    <PackageReleaseNotes>Fixed interleaving pixels.</PackageReleaseNotes>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">

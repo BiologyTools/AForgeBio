@@ -3393,14 +3393,56 @@ namespace AForge
             Plane = plane;
             stats = Statistics.FromBytes(this);
         }
-        public Bitmap(string file, int w, int h, PixelFormat px, byte[] bts, ZCT coord, int index, bool littleEndian)
+        public Bitmap(string file, int w, int h, PixelFormat px, byte[] byts, ZCT coord, int index, bool littleEndian, bool interleaved)
         {
             ID = CreateID(file, index);
             SizeX = w;
             SizeY = h;
             pixelFormat = px;
             Coordinate = coord;
-            Bytes = bts;
+            Bytes = byts;
+            if (!interleaved)
+            {
+                byte[] bts = new byte[Length];
+                int strplane = 0;
+                if (BitsPerPixel > 8)
+                    strplane = w * 2;
+                else
+                    strplane = w;
+                if (RGBChannelsCount == 1)
+                {
+                    for (int y = 0; y < h; y++)
+                    {
+                        int x = 0;
+                        int str1 = Stride * y;
+                        int str2 = strplane * y;
+                        for (int st = 0; st < strplane; st++)
+                        {
+                            bts[str1 + x] = bytes[str2 + st];
+                            x++;
+                        }
+                    }
+                }
+                else
+                {
+                    int ind = strplane * h;
+                    int indb = ind * 2;
+                    for (int y = 0; y < h; y++)
+                    {
+                        int x = 0;
+                        int str1 = Stride * y;
+                        int str2 = strplane * y;
+                        for (int st = 0; st < strplane; st++)
+                        {
+                            bts[str1 + x + 2] = bytes[str2 + st];
+                            bts[str1 + x + 1] = bytes[ind + str2 + st];
+                            bts[str1 + x] = bytes[indb + str2 + st];
+                            x += 3;
+                        }
+                    }
+                }
+                bytes = bts;
+            }
             if (!littleEndian)
             {
                 Array.Reverse(Bytes);
@@ -3410,14 +3452,56 @@ namespace AForge
                 SwitchRedBlue();
             stats = Statistics.FromBytes(this);
         }
-        public Bitmap(string file, int w, int h, PixelFormat px, byte[] bts, ZCT coord, int index, bool littleEndian, Plane plane)
+        public Bitmap(string file, int w, int h, PixelFormat px, byte[] byts, ZCT coord, int index, bool littleEndian, bool interleaved, Plane plane)
         {
             ID = CreateID(file, index);
             SizeX = w;
             SizeY = h;
             pixelFormat = px;
             Coordinate = coord;
-            Bytes = bts;
+            Bytes = byts;
+            if (!interleaved)
+            {
+                byte[] bts = new byte[Length];
+                int strplane = 0;
+                if (BitsPerPixel > 8)
+                    strplane = w * 2;
+                else
+                    strplane = w;
+                if (RGBChannelsCount == 1)
+                {
+                    for (int y = 0; y < h; y++)
+                    {
+                        int x = 0;
+                        int str1 = Stride * y;
+                        int str2 = strplane * y;
+                        for (int st = 0; st < strplane; st++)
+                        {
+                            bts[str1 + x] = bytes[str2 + st];
+                            x++;
+                        }
+                    }
+                }
+                else
+                {
+                    int ind = strplane * h;
+                    int indb = ind * 2;
+                    for (int y = 0; y < h; y++)
+                    {
+                        int x = 0;
+                        int str1 = Stride * y;
+                        int str2 = strplane * y;
+                        for (int st = 0; st < strplane; st++)
+                        {
+                            bts[str1 + x + 2] = bytes[str2 + st];
+                            bts[str1 + x + 1] = bytes[ind + str2 + st];
+                            bts[str1 + x] = bytes[indb + str2 + st];
+                            x += 3;
+                        }
+                    }
+                }
+                bytes = bts;
+            }
             if (!littleEndian)
             {
                 Array.Reverse(Bytes);
