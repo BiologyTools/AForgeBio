@@ -16,6 +16,7 @@ using Gdk;
 using static System.Net.Mime.MediaTypeNames;
 using Cairo;
 using Atk;
+using GLib;
 
 
 namespace AForge
@@ -964,14 +965,14 @@ namespace AForge
         public static Dictionary<string, Bitmap> list = new Dictionary<string, Bitmap>();
         public static void FromBytes()
         {
-            string name = Thread.CurrentThread.Name;
+            string name = System.Threading.Thread.CurrentThread.Name;
             list[name].Stats = FromBytes(list[name]);
             list.Remove(name);
         }
         public static void CalcStatistics(Bitmap bf)
         {
             bf.Stats = null;
-            Thread th = new Thread(FromBytes);
+            System.Threading.Thread th = new System.Threading.Thread(FromBytes);
             th.Name = bf.ID;
             list.Add(th.Name.ToString(), bf);
             th.Start();
@@ -3360,17 +3361,66 @@ namespace AForge
                 return new Bitmap(cr.Apply(Image));
             }
         }
-        public Bitmap(string file, int w, int h, PixelFormat px, byte[] bts, ZCT coord, int index)
+        void Initialize(string file, int w, int h, PixelFormat px, byte[] byts, ZCT coord, int index , Plane plane, bool littleEndian = true, bool interleaved = true)
         {
             ID = CreateID(file, index);
             SizeX = w;
             SizeY = h;
             pixelFormat = px;
             Coordinate = coord;
-            Bytes = bts;
-            if (px == PixelFormat.Format48bppRgb)
-                SwitchRedBlue();
+            Bytes = byts;
+            if (!interleaved)
+            {
+                byte[] bts = new byte[Length];
+                int strplane = 0;
+                if (BitsPerPixel > 8)
+                    strplane = w * 2;
+                else
+                    strplane = w;
+                if (RGBChannelsCount == 1)
+                {
+                    for (int y = 0; y < h; y++)
+                    {
+                        int x = 0;
+                        int str1 = Stride * y;
+                        int str2 = strplane * y;
+                        for (int st = 0; st < strplane; st++)
+                        {
+                            bts[str1 + x] = bytes[str2 + st];
+                            x++;
+                        }
+                    }
+                }
+                else
+                {
+                    int ind = strplane * h;
+                    int indb = ind * 2;
+                    for (int y = 0; y < h; y++)
+                    {
+                        int x = 0;
+                        int str1 = Stride * y;
+                        int str2 = strplane * y;
+                        for (int st = 0; st < strplane; st++)
+                        {
+                            bts[str1 + x + 2] = bytes[str2 + st];
+                            bts[str1 + x + 1] = bytes[ind + str2 + st];
+                            bts[str1 + x] = bytes[indb + str2 + st];
+                            x += 3;
+                        }
+                    }
+                }
+                bytes = bts;
+            }
+            if (!littleEndian)
+            {
+                Array.Reverse(Bytes);
+                RotateFlip(RotateFlipType.Rotate180FlipNone);
+            }
             stats = Statistics.FromBytes(this);
+        }
+        public Bitmap(string file, int w, int h, PixelFormat px, byte[] bts, ZCT coord, int index)
+        {
+            Initialize(file, w, h, px, bts, coord, index, null);
         }
         public Bitmap(int w, int h, PixelFormat px)
         {
@@ -3380,137 +3430,9 @@ namespace AForge
             Coordinate = new ZCT();
             Bytes = new byte[h * Stride];
         }
-        public Bitmap(string file, int w, int h, PixelFormat px, byte[] bts, ZCT coord, int index, Plane plane)
+        public Bitmap(string file, int w, int h, PixelFormat px, byte[] byts, ZCT coord, int index, Plane plane, bool littleEndian = true, bool interleaved = true)
         {
-            ID = CreateID(file, index);
-            SizeX = w;
-            SizeY = h;
-            pixelFormat = px;
-            Coordinate = coord;
-            Bytes = bts;
-            if (px == PixelFormat.Format48bppRgb)
-                SwitchRedBlue();
-            Plane = plane;
-            stats = Statistics.FromBytes(this);
-        }
-        public Bitmap(string file, int w, int h, PixelFormat px, byte[] byts, ZCT coord, int index, bool littleEndian, bool interleaved)
-        {
-            ID = CreateID(file, index);
-            SizeX = w;
-            SizeY = h;
-            pixelFormat = px;
-            Coordinate = coord;
-            Bytes = byts;
-            if (!interleaved)
-            {
-                byte[] bts = new byte[Length];
-                int strplane = 0;
-                if (BitsPerPixel > 8)
-                    strplane = w * 2;
-                else
-                    strplane = w;
-                if (RGBChannelsCount == 1)
-                {
-                    for (int y = 0; y < h; y++)
-                    {
-                        int x = 0;
-                        int str1 = Stride * y;
-                        int str2 = strplane * y;
-                        for (int st = 0; st < strplane; st++)
-                        {
-                            bts[str1 + x] = bytes[str2 + st];
-                            x++;
-                        }
-                    }
-                }
-                else
-                {
-                    int ind = strplane * h;
-                    int indb = ind * 2;
-                    for (int y = 0; y < h; y++)
-                    {
-                        int x = 0;
-                        int str1 = Stride * y;
-                        int str2 = strplane * y;
-                        for (int st = 0; st < strplane; st++)
-                        {
-                            bts[str1 + x + 2] = bytes[str2 + st];
-                            bts[str1 + x + 1] = bytes[ind + str2 + st];
-                            bts[str1 + x] = bytes[indb + str2 + st];
-                            x += 3;
-                        }
-                    }
-                }
-                bytes = bts;
-            }
-            if (!littleEndian)
-            {
-                Array.Reverse(Bytes);
-                RotateFlip(RotateFlipType.Rotate180FlipNone);
-            }
-            if (isRGB)
-                SwitchRedBlue();
-            stats = Statistics.FromBytes(this);
-        }
-        public Bitmap(string file, int w, int h, PixelFormat px, byte[] byts, ZCT coord, int index, bool littleEndian, bool interleaved, Plane plane)
-        {
-            ID = CreateID(file, index);
-            SizeX = w;
-            SizeY = h;
-            pixelFormat = px;
-            Coordinate = coord;
-            Bytes = byts;
-            if (!interleaved)
-            {
-                byte[] bts = new byte[Length];
-                int strplane = 0;
-                if (BitsPerPixel > 8)
-                    strplane = w * 2;
-                else
-                    strplane = w;
-                if (RGBChannelsCount == 1)
-                {
-                    for (int y = 0; y < h; y++)
-                    {
-                        int x = 0;
-                        int str1 = Stride * y;
-                        int str2 = strplane * y;
-                        for (int st = 0; st < strplane; st++)
-                        {
-                            bts[str1 + x] = bytes[str2 + st];
-                            x++;
-                        }
-                    }
-                }
-                else
-                {
-                    int ind = strplane * h;
-                    int indb = ind * 2;
-                    for (int y = 0; y < h; y++)
-                    {
-                        int x = 0;
-                        int str1 = Stride * y;
-                        int str2 = strplane * y;
-                        for (int st = 0; st < strplane; st++)
-                        {
-                            bts[str1 + x + 2] = bytes[str2 + st];
-                            bts[str1 + x + 1] = bytes[ind + str2 + st];
-                            bts[str1 + x] = bytes[indb + str2 + st];
-                            x += 3;
-                        }
-                    }
-                }
-                bytes = bts;
-            }
-            if (!littleEndian)
-            {
-                Array.Reverse(Bytes);
-                RotateFlip(RotateFlipType.Rotate180FlipNone);
-            }
-            if (isRGB)
-                SwitchRedBlue();
-            Plane = plane;
-            stats = Statistics.FromBytes(this);
+            Initialize(file,w,h,px,byts,coord,index,plane,littleEndian,interleaved);
         }
         public Bitmap(string file, UnmanagedImage im, ZCT coord, int index)
         {
@@ -3519,8 +3441,6 @@ namespace AForge
             SizeY = im.Height;
             pixelFormat = im.PixelFormat;
             Coordinate = coord;
-            if (im.PixelFormat == PixelFormat.Format48bppRgb)
-                SwitchRedBlue();
             Image = im;
             stats = Statistics.FromBytes(this);
         }
@@ -3531,8 +3451,6 @@ namespace AForge
             SizeY = im.Height;
             pixelFormat = im.PixelFormat;
             Coordinate = coord;
-            if (im.PixelFormat == PixelFormat.Format48bppRgb)
-                SwitchRedBlue();
             Image = im;
             Plane = pl;
             stats = Statistics.FromBytes(this);
@@ -3542,8 +3460,6 @@ namespace AForge
             SizeX = width;
             SizeY = height;
             this.pixelFormat= pixelFormat;
-            if (pixelFormat == PixelFormat.Format48bppRgb)
-                SwitchRedBlue();
             bytes = new byte[stride * height];
             Marshal.Copy(imageData, bytes, 0, stride * height);
             stats = Statistics.FromBytes(this);
@@ -3555,21 +3471,11 @@ namespace AForge
             pixelFormat = im.PixelFormat;
             Coordinate = new ZCT();
             Image = im;
-            if (im.PixelFormat == PixelFormat.Format48bppRgb)
-                SwitchRedBlue();
             stats = Statistics.FromBytes(this);
         }
         public Bitmap(int w, int h, PixelFormat px, byte[] bts, ZCT coord, string id)
         {
-            ID = id;
-            SizeX = w;
-            SizeY = h;
-            pixelFormat = px;
-            Coordinate = coord;
-            Bytes = bts;
-            if (px == PixelFormat.Format48bppRgb)
-                SwitchRedBlue();
-            stats = Statistics.FromBytes(this);
+            Initialize(id, w, h, px, bts, coord, 0, null);
         }
         public static UnmanagedImage SwitchRedBlue(UnmanagedImage image)
         {
