@@ -971,7 +971,6 @@ namespace AForge
         }
         public static void CalcStatistics(Bitmap bf)
         {
-            bf.Stats = null;
             System.Threading.Thread th = new System.Threading.Thread(FromBytes);
             th.Name = bf.ID;
             list.Add(th.Name.ToString(), bf);
