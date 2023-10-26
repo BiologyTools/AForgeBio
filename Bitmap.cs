@@ -3371,9 +3371,11 @@ namespace AForge
             if (!interleaved)
             {
                 byte[] bts = new byte[Length];
-                int strplane = 0;
+                int strplane;
                 if (BitsPerPixel > 8)
+                {
                     strplane = w * 2;
+                }
                 else
                     strplane = w;
                 if (RGBChannelsCount == 1)
@@ -3392,19 +3394,48 @@ namespace AForge
                 }
                 else
                 {
-                    int ind = strplane * h;
-                    int indb = ind * 2;
-                    for (int y = 0; y < h; y++)
+                    if (BitsPerPixel > 8)
                     {
-                        int x = 0;
-                        int str1 = Stride * y;
-                        int str2 = strplane * y;
-                        for (int st = 0; st < strplane; st++)
+                        int ind = strplane * h;
+                        int ind2 = strplane * h * 2;
+                        for (int y = 0; y < h; y++)
                         {
-                            bts[str1 + x + 2] = bytes[str2 + st];
-                            bts[str1 + x + 1] = bytes[ind + str2 + st];
-                            bts[str1 + x] = bytes[indb + str2 + st];
-                            x += 3;
+                            int i = 0;
+                            int x = 0;
+                            int str1 = Stride * y;
+                            int str2 = strplane * y;
+                            for (int st = 0; st < strplane; st+=2)
+                            {
+                                bts[str1 + x + 0] = bytes[str2 + st];
+                                bts[str1 + x + 1] = bytes[str2 + st + 1];
+                                bts[str1 + x + 2] = bytes[ind + str2 + st];
+                                bts[str1 + x + 3] = bytes[ind + str2 + st + 1];
+                                bts[str1 + x + 4] = bytes[ind2 + str2 + st];
+                                bts[str1 + x + 5] = bytes[ind2 + str2 + st + 1];
+                                if(i==1)
+                                {
+                                    i = 0; x+=6;
+                                }
+                                i++;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        int ind = strplane * h;
+                        int indb = ind * 2;
+                        for (int y = 0; y < h; y++)
+                        {
+                            int x = 0;
+                            int str1 = Stride * y;
+                            int str2 = strplane * y;
+                            for (int st = 0; st < strplane; st++)
+                            {
+                                bts[str1 + x + 2] = bytes[str2 + st];
+                                bts[str1 + x + 1] = bytes[ind + str2 + st];
+                                bts[str1 + x] = bytes[indb + str2 + st];
+                                x += 3;
+                            }
                         }
                     }
                 }
