@@ -12,13 +12,6 @@ using System.Threading;
 using System.Runtime.Serialization;
 using System.Text;
 using Gtk;
-using Gdk;
-using static System.Net.Mime.MediaTypeNames;
-using Cairo;
-using Atk;
-using GLib;
-
-
 namespace AForge
 {
     public enum PixelFormat
@@ -1522,2393 +1515,2062 @@ namespace AForge
         ReadWrite,
         ReadOnly,
     }
+    public class LUT
+    {
+        Bitmap ApplyLut(Bitmap originalBitmap, byte[] lut)
+        {
+            // Lock the bitmap's bits
+            Rectangle rect = new Rectangle(0, 0, originalBitmap.Width, originalBitmap.Height);
+            BitmapData bmpData = originalBitmap.LockBits(rect, ImageLockMode.ReadWrite, originalBitmap.PixelFormat);
+
+            // Get the address of the first line
+            IntPtr ptr = bmpData.Scan0;
+
+            // Declare an array to hold the bytes of the bitmap
+            int bytes = System.Math.Abs(bmpData.Stride) * originalBitmap.Height;
+            byte[] rgbValues = new byte[bytes];
+
+            // Copy the RGB values into the array
+            System.Runtime.InteropServices.Marshal.Copy(ptr, rgbValues, 0, bytes);
+
+            // Apply the LUT to each pixel
+            for (int i = 0; i < rgbValues.Length; i++)
+            {
+                rgbValues[i] = lut[rgbValues[i]];
+            }
+
+            // Copy the RGB values back to the bitmap
+            System.Runtime.InteropServices.Marshal.Copy(rgbValues, 0, ptr, bytes);
+
+            // Unlock the bits
+            originalBitmap.UnlockBits(bmpData);
+
+            return originalBitmap;
+        }
+        Bitmap ApplyLut16Bit(Bitmap originalBitmap, ushort[] lut)
+        {
+            // Lock the bitmap's bits
+            Rectangle rect = new Rectangle(0, 0, originalBitmap.Width, originalBitmap.Height);
+            BitmapData bmpData = originalBitmap.LockBits(rect, ImageLockMode.ReadWrite, originalBitmap.PixelFormat);
+
+            // Get the address of the first line
+            IntPtr ptr = bmpData.Scan0;
+
+            // Declare an array to hold the bytes of the bitmap
+            int bytes = System.Math.Abs(bmpData.Stride) * originalBitmap.Height;
+            byte[] rgbValues = new byte[bytes];
+
+            // Copy the RGB values into the array
+            System.Runtime.InteropServices.Marshal.Copy(ptr, rgbValues, 0, bytes);
+
+            // Apply the LUT to each pixel (16 bit)
+            for (int i = 0; i < rgbValues.Length; i += 2)
+            {
+                ushort pixelValue = BitConverter.ToUInt16(rgbValues, i);
+                ushort newPixelValue = lut[pixelValue];
+
+                byte[] newPixelBytes = BitConverter.GetBytes(newPixelValue);
+                rgbValues[i] = newPixelBytes[0];
+                rgbValues[i + 1] = newPixelBytes[1];
+            }
+
+            // Copy the RGB values back to the bitmap
+            System.Runtime.InteropServices.Marshal.Copy(rgbValues, 0, ptr, bytes);
+
+            // Unlock the bits
+            originalBitmap.UnlockBits(bmpData);
+
+            return originalBitmap;
+        }
+    }
     public class Bitmap : IDisposable
     {
+        private float horizontalRes = 96f;
+        private float verticalRes = 96f;
+        internal Bitmap.ColorPalette palette = new Bitmap.ColorPalette();
+        string id;
+        public string ID
+        {
+            get 
+            {
+                if (id == "" || id == null)
+                    return Guid.NewGuid().ToString();
+                else return id;
+            }
+            set
+            {
+                id = value;
+            }
+        }
+        public int SizeX;
+        public int SizeY;
+        public ZCT Coordinate;
+        private PixelFormat pixelFormat;
+        private Statistics[] stats;
+        private byte[] bytes;
+        private string file;
+        private bool littleEndian = BitConverter.IsLittleEndian;
+        private Plane plane;
+
         public ushort GetValueRGB(int x, int y, int RGBChannel)
         {
-            if (bytes == null)
+            if (this.bytes == null)
                 return 0;
-            if (x >= SizeX || x < 0)
+            if (x >= this.SizeX || x < 0)
                 x = 0;
-            if (y >= SizeY || y < 0)
+            if (y >= this.SizeY || y < 0)
                 y = 0;
-            int stridex = SizeX;
-            if (BitsPerPixel > 8)
-            {
-                int index2 = ((y * stridex + x) * 2 * RGBChannelsCount) + (RGBChannel * 2);
-                return BitConverter.ToUInt16(bytes, index2);
-            }
-            else
-            {
-                int stride = SizeX;
-                int index = ((y * stridex + x) * RGBChannelsCount) + RGBChannel;
-                return bytes[index];
-            }
+            int sizeX1 = this.SizeX;
+            if (this.BitsPerPixel > 8)
+                return BitConverter.ToUInt16(this.bytes, (y * sizeX1 + x) * 2 * this.RGBChannelsCount + RGBChannel * 2);
+            int sizeX2 = this.SizeX;
+            return (ushort)this.bytes[(y * sizeX1 + x) * this.RGBChannelsCount + RGBChannel];
         }
+
         public ColorS GetPixel(int ix, int iy)
         {
-            if (isRGB)
-                return new ColorS(GetValueRGB(ix, iy, 0), GetValueRGB(ix, iy, 1), GetValueRGB(ix, iy, 2));
-            else
-            {
-                ushort s = GetValueRGB(ix, iy, 0);
-                return new ColorS(s, s, s);
-            }
+            if (this.isRGB)
+                return new ColorS(this.GetValueRGB(ix, iy, 0), this.GetValueRGB(ix, iy, 1), this.GetValueRGB(ix, iy, 2));
+            int valueRgb = (int)this.GetValueRGB(ix, iy, 0);
+            return new ColorS((ushort)valueRgb, (ushort)valueRgb, (ushort)valueRgb);
         }
+
         public void SetPixel(int ix, int iy, ColorS col)
         {
-            if (isRGB)
-            {
-                SetColorRGB(ix, iy, col);
-            }
+            if (this.isRGB)
+                this.SetColorRGB(ix, iy, col);
             else
-                SetValue(ix, iy, col.R);
+                this.SetValue(ix, iy, col.R);
         }
+
         public void SetValue(int x, int y, ushort value)
         {
-            int stridex = SizeX;
-            if (BitsPerPixel > 8)
+            int sizeX = this.SizeX;
+            if (this.BitsPerPixel > 8)
             {
-                int index2 = ((y * stridex + x) * 2 * RGBChannelsCount);
-                byte upper = (byte)(value >> 8);
-                byte lower = (byte)(value & 0xff);
-                bytes[index2] = upper;
-                bytes[index2 + 1] = lower;
+                int index = (y * sizeX + x) * 2 * this.RGBChannelsCount;
+                byte num1 = (byte)((uint)value >> 8);
+                byte num2 = (byte)((uint)value & (uint)byte.MaxValue);
+                this.bytes[index] = num1;
+                this.bytes[index + 1] = num2;
             }
             else
-            {
-                int index = (y * stridex + x) * RGBChannelsCount;
-                bytes[index] = (byte)value;
-            }
+                this.bytes[(y * sizeX + x) * this.RGBChannelsCount] = (byte)value;
         }
+
         public void SetValueRGB(int ix, int iy, int RGBChannel, ushort value)
         {
-            int x = ix;
-            int y = iy;
-            //We invert the RGB channel parameter since pixels are in BGR order.
-            if (RGBChannel == 2)
-                RGBChannel = 0;
-            else
-            if (RGBChannel == 0)
-                RGBChannel = 2;
-            int stridex = SizeX;
-            if (BitsPerPixel > 8)
+            int num1 = ix;
+            int num2 = iy;
+            switch (RGBChannel)
             {
-                int index2 = ((y * stridex + x) * 2 * RGBChannelsCount) + (RGBChannel * 2);
-                byte upper = (byte)(value >> 8);
-                byte lower = (byte)(value & 0xff);
-                bytes[index2] = upper;
-                bytes[index2 + 1] = lower;
+                case 0:
+                    RGBChannel = 2;
+                    break;
+                case 2:
+                    RGBChannel = 0;
+                    break;
+            }
+            int sizeX = this.SizeX;
+            if (this.BitsPerPixel > 8)
+            {
+                int index = (num2 * sizeX + num1) * 2 * this.RGBChannelsCount + RGBChannel * 2;
+                byte num3 = (byte)((uint)value >> 8);
+                byte num4 = (byte)((uint)value & (uint)byte.MaxValue);
+                this.bytes[index] = num3;
+                this.bytes[index + 1] = num4;
             }
             else
-            {
-                int index = ((y * stridex + x) * RGBChannelsCount) + RGBChannel;
-                bytes[index] = (byte)value;
-            }
+                this.bytes[(num2 * sizeX + num1) * this.RGBChannelsCount + RGBChannel] = (byte)value;
         }
+
         public void SetColorRGB(int ix, int iy, ColorS value)
         {
-            int x = ix;
-            int y = iy;
-            int stridex = SizeX;
-            if (BitsPerPixel > 8)
+            int num1 = ix;
+            int num2 = iy;
+            int sizeX = this.SizeX;
+            if (this.BitsPerPixel > 8)
             {
-                int index2 = ((y * stridex + x) * 6);
-                bytes[index2] = value.bytes[0];
-                bytes[index2 + 1] = value.bytes[1];
-                bytes[index2 + 2] = value.bytes[2];
-                bytes[index2 + 3] = value.bytes[3];
-                bytes[index2 + 4] = value.bytes[4];
-                bytes[index2 + 5] = value.bytes[5];
+                int index = (num2 * sizeX + num1) * 6;
+                this.bytes[index] = value.bytes[0];
+                this.bytes[index + 1] = value.bytes[1];
+                this.bytes[index + 2] = value.bytes[2];
+                this.bytes[index + 3] = value.bytes[3];
+                this.bytes[index + 4] = value.bytes[4];
+                this.bytes[index + 5] = value.bytes[5];
             }
             else
             {
-                int index2 = ((y * stridex + x) * RGBChannelsCount);
-                bytes[index2 + 2] = (byte)value.R;
-                bytes[index2 + 1] = (byte)value.G;
-                bytes[index2] = (byte)value.B;
+                int index = (num2 * sizeX + num1) * this.RGBChannelsCount;
+                this.bytes[index + 2] = (byte)value.R;
+                this.bytes[index + 1] = (byte)value.G;
+                this.bytes[index] = (byte)value.B;
             }
         }
+
         public static string CreateID(string filepath, int index)
         {
             if (filepath == null)
                 return "";
-            const char sep = '/';
             filepath = filepath.Replace("\\", "/");
-            string s = filepath + sep + 'i' + sep + index;
-            return s;
+            return filepath + "/i/" + index.ToString();
         }
-        float horizontalRes = 96f;
-        float verticalRes = 96f;
-        internal ColorPalette palette = new ColorPalette();
-#if DEBUG
-        public Gdk.Pixbuf ClipboardImage
-        {
-            get
-            {
-                Gdk.Pixbuf pixbuf = new Gdk.Pixbuf(RGBBytes, true, 8, Width, Height, Width * 4);
-                // Get the default clipboard
-                var clipboard = Clipboard.Get(Gdk.Selection.Clipboard);
-                // Convert the image to a byte array
-                var imageData = pixbuf.SaveToBuffer("png");
-                // Convert the image data to Base64-encoded string
-                var imageString = Convert.ToBase64String(imageData);
-                // Set the image data as text to the clipboard
-                clipboard.Text = "data:image/png;base64," + imageString;
-                return pixbuf;
-            }
-        }
-#endif
-        public string ID;
+
         public string File
         {
-            get { return file; }
-            set { file = value; }
+            get => this.file;
+            set => this.file = value;
         }
-        public int HashID
-        {
-            get
-            {
-                return ID.GetHashCode();
-            }
-        }
-        public int SizeX, SizeY;
-        public int Width
-        {
-            get { return SizeX; }
-        }
-        public int Height
-        {
-            get { return SizeY; }
-        }
-        public int Stride
-        {
-            get
-            {
-                int s = 0;
-                if (pixelFormat == PixelFormat.Format8bppIndexed)
-                    s = SizeX;
-                else
-                if (pixelFormat == PixelFormat.Format16bppGrayScale)
-                    s = SizeX * 2;
-                else
-                if (pixelFormat == PixelFormat.Format24bppRgb)
-                    s = SizeX * 3;
-                else
-                    if (pixelFormat == PixelFormat.Format32bppRgb || pixelFormat == PixelFormat.Format32bppArgb)
-                    s = SizeX * 4;
-                else
-                    s = SizeX * 3 * 2;
-                return s;
-            }
-        }
-        public int PaddedStride
-        {
-            get
-            {
-                return GetStridePadded(Stride);
-            }
-        }
-        public byte[] PaddedBuffer
-        {
-            get
-            {
-                return GetPaddedBuffer(Bytes, SizeX, SizeY, Stride, PixelFormat);
-            }
-        }
+
+        public int HashID => this.ID.GetHashCode();
+
+        public int Width => this.SizeX;
+
+        public int Height => this.SizeY;
+
+        public int Stride => this.pixelFormat != PixelFormat.Format8bppIndexed ? (this.pixelFormat != PixelFormat.Format16bppGrayScale ? (this.pixelFormat != PixelFormat.Format24bppRgb ? (this.pixelFormat == PixelFormat.Format32bppRgb || this.pixelFormat == PixelFormat.Format32bppArgb ? this.SizeX * 4 : this.SizeX * 3 * 2) : this.SizeX * 3) : this.SizeX * 2) : this.SizeX;
+
+        public int PaddedStride => Bitmap.GetStridePadded(this.Stride);
+
         public bool LittleEndian
         {
-            get
-            {
-                return littleEndian;
-            }
-            set
-            {
-                littleEndian = value;
-            }
+            get => this.littleEndian;
+            set => this.littleEndian = value;
         }
-        public long Length
-        {
-            get
-            {
-                return bytes.Length;
-            }
+
+        public Gdk.Pixbuf Pixbuf 
+        { 
+            get { return new Gdk.Pixbuf(Bytes, RGBChannelsCount > 3, BitsPerPixel, SizeX, SizeY, Stride); }
         }
+
+        public long Length => (long)this.bytes.Length;
+
         public int RGBChannelsCount
         {
             get
             {
-                if (PixelFormat == PixelFormat.Format24bppRgb || PixelFormat == PixelFormat.Format48bppRgb)
+                if (this.PixelFormat == PixelFormat.Format24bppRgb || this.PixelFormat == PixelFormat.Format48bppRgb)
                     return 3;
-                else
-                if (PixelFormat == PixelFormat.Format8bppIndexed || PixelFormat == PixelFormat.Format16bppGrayScale)
-                    return 1;
-                else
-                    return 4;
+                return this.PixelFormat == PixelFormat.Format8bppIndexed || this.PixelFormat == PixelFormat.Format16bppGrayScale ? 1 : 4;
             }
         }
-        public int BitsPerPixel
-        {
-            get
-            {
-                if (PixelFormat == PixelFormat.Format16bppGrayScale || PixelFormat == PixelFormat.Format48bppRgb)
-                {
-                    return 16;
-                }
-                else
-                    return 8;
-            }
-        }
-        public ZCT Coordinate;
+
+        public int BitsPerPixel => this.PixelFormat == PixelFormat.Format16bppGrayScale || this.PixelFormat == PixelFormat.Format48bppRgb ? 16 : 8;
+
         public PixelFormat PixelFormat
         {
-            get
-            {
-                return pixelFormat;
-            }
-            set
-            {
-                pixelFormat = value;
-            }
+            get => this.pixelFormat;
+            set => this.pixelFormat = value;
         }
+
         public byte[] Bytes
         {
-            get { return bytes; }
-            set
-            {
-                bytes = value;
-            }
+            get => this.bytes;
+            set => this.bytes = value;
         }
-        public byte[] PaddedBytes
+
+        public byte[] PaddedBytes => Bitmap.GetPaddedBuffer(this.bytes, this.SizeX, this.SizeY, this.Stride, this.PixelFormat);
+
+        public unsafe UnmanagedImage Image
         {
             get
             {
-                return GetPaddedBuffer(bytes, SizeX, SizeY, Stride, PixelFormat);
-            }
-        }
-        public unsafe AForge.Imaging.UnmanagedImage Image
-        {
-            get
-            {
-                fixed(byte* dat = PaddedBytes)
-                {
-                    return new AForge.Imaging.UnmanagedImage((IntPtr)dat, SizeX, SizeY, PaddedStride, PixelFormat);
-                }
+                fixed (byte* numPtr = this.PaddedBytes)
+                    return new UnmanagedImage((IntPtr)(void*)numPtr, this.SizeX, this.SizeY, this.PaddedStride, this.PixelFormat);
             }
             set
             {
-                bytes = new byte[value.Stride * value.Height];
-                Marshal.Copy(value.ImageData, Bytes, 0, value.Stride * value.Height);
-                PixelFormat = value.PixelFormat;
-                SizeX = value.Width;
-                SizeY = value.Height;
+                this.bytes = new byte[value.Stride * value.Height];
+                Marshal.Copy(value.ImageData, this.Bytes, 0, value.Stride * value.Height);
+                this.PixelFormat = value.PixelFormat;
+                this.SizeX = value.Width;
+                this.SizeY = value.Height;
             }
         }
-        public byte[] RGBBytes
-        {
-            get
-            {
-                return GetBitmapRGB(SizeX, SizeY, PixelFormat, Bytes).Bytes;
-            }
-        }
+
+        public byte[] RGBBytes => Bitmap.GetBitmapRGB(this.SizeX, this.SizeY, this.PixelFormat, this.Bytes).Bytes;
+
         public Bitmap ImageRGB
         {
-            get
-            {
-                return GetBitmapRGB(SizeX, SizeY, PixelFormat, Bytes);
-            }
+            get => Bitmap.GetBitmapRGB(this.SizeX, this.SizeY, this.PixelFormat, this.Bytes);
             set
             {
-                Marshal.Copy(value.Bytes, 0, Marshal.UnsafeAddrOfPinnedArrayElement(Bytes,0), value.Bytes.Length);
-                PixelFormat = value.PixelFormat;
-                SizeX = value.Width;
-                SizeY = value.Height;
+                Marshal.Copy(value.Bytes, 0, Marshal.UnsafeAddrOfPinnedArrayElement<byte>(this.Bytes, 0), value.Bytes.Length);
+                this.PixelFormat = value.PixelFormat;
+                this.SizeX = value.Width;
+                this.SizeY = value.Height;
             }
         }
+
         public unsafe IntPtr Data
         {
             get
             {
-                fixed (byte* dat = Bytes)
-                {
-                    return (IntPtr)dat;
-                }
+                fixed (byte* numPtr = this.Bytes)
+                    return (IntPtr)(void*)numPtr;
             }
         }
-        public IntPtr RGBData
-        {
-            get
-            {
-                return GetRGB32Data(SizeX, SizeY, PixelFormat, bytes);
-            }
-        }
+
+        public IntPtr RGBData => Bitmap.GetRGB32Data(this.SizeX, this.SizeY, this.PixelFormat, this.bytes);
+
         public Plane Plane
         {
-            get { return plane; }
-            set { plane = value; }
+            get => this.plane;
+            set => this.plane = value;
         }
+
         public int PixelFormatSize
         {
             get
             {
-                if (pixelFormat == PixelFormat.Format8bppIndexed)
+                if (this.pixelFormat == PixelFormat.Format8bppIndexed)
                     return 1;
-                else if (pixelFormat == PixelFormat.Format16bppGrayScale)
+                if (this.pixelFormat == PixelFormat.Format16bppGrayScale)
                     return 2;
-                else if (pixelFormat == PixelFormat.Format24bppRgb)
+                if (this.pixelFormat == PixelFormat.Format24bppRgb)
                     return 3;
-                else if (pixelFormat == PixelFormat.Format32bppRgb || pixelFormat == PixelFormat.Format32bppArgb)
+                if (this.pixelFormat == PixelFormat.Format32bppRgb || this.pixelFormat == PixelFormat.Format32bppArgb)
                     return 4;
-                else if (pixelFormat == PixelFormat.Format48bppRgb)
+                if (this.pixelFormat == PixelFormat.Format48bppRgb)
                     return 6;
                 throw new InvalidDataException("Bio only supports 8, 16, 24, 32, and 48 bit images.");
             }
         }
+
         public static int GetPixelFormatSize(PixelFormat pixelFormat)
         {
-            if (pixelFormat == PixelFormat.Format1bppIndexed)
-                return 1;
-            else if (pixelFormat == PixelFormat.Format4bppIndexed)
-                return 4;
-            else if (pixelFormat == PixelFormat.Format8bppIndexed)
-                return 8;
-            else if (pixelFormat == PixelFormat.Format16bppGrayScale)
-                return 16;
-            else if (pixelFormat == PixelFormat.Format24bppRgb)
-                return 24;
-            else if (pixelFormat == PixelFormat.Format32bppRgb || pixelFormat == PixelFormat.Format32bppArgb || pixelFormat == PixelFormat.Format32bppPArgb)
-                return 32;
-            else if (pixelFormat == PixelFormat.Format48bppRgb)
-                return 48;
-            else if (pixelFormat == PixelFormat.Format64bppArgb || pixelFormat == PixelFormat.Format64bppPArgb)
-                return 64;
-            throw new NotSupportedException();
-        }
-        public class ColorPalette
-        {
-            internal Color[] entries;
-            public Color[] Entries { get { return entries; } set { entries = value; } }
-            public ColorPalette()
+            switch (pixelFormat)
             {
-                entries = new Color[256];
+                case PixelFormat.Format1bppIndexed:
+                    return 1;
+                case PixelFormat.Format4bppIndexed:
+                    return 4;
+                case PixelFormat.Format8bppIndexed:
+                    return 8;
+                case PixelFormat.Format16bppGrayScale:
+                    return 16;
+                case PixelFormat.Format24bppRgb:
+                    return 24;
+                case PixelFormat.Format32bppArgb:
+                case PixelFormat.Format32bppRgb:
+                case PixelFormat.Format32bppPArgb:
+                    return 32;
+                case PixelFormat.Format48bppRgb:
+                    return 48;
+                case PixelFormat.Format64bppArgb:
+                case PixelFormat.Format64bppPArgb:
+                    return 64;
+                default:
+                    throw new NotSupportedException();
             }
         }
-        public ColorPalette Palette
+
+        public Bitmap.ColorPalette Palette
         {
-            get { return palette; }
-            set { palette = value; }
+            get => this.palette;
+            set => this.palette = value;
         }
+
         public float VerticalResolution
         {
-            get { return verticalRes; }
-            set { verticalRes = value; }
+            get => this.verticalRes;
+            set => this.verticalRes = value;
         }
+
         public float HorizontalResolution
         {
-            get { return horizontalRes; }
-            set { horizontalRes = value; }
+            get => this.horizontalRes;
+            set => this.horizontalRes = value;
         }
-        private PixelFormat pixelFormat;
+
         public Statistics[] Stats
         {
-            get { return stats; }
-            set { stats = value; }
+            get => this.stats;
+            set => this.stats = value;
         }
-        Statistics[] stats;
-        byte[] bytes;
-        string file;
-        bool littleEndian = BitConverter.IsLittleEndian;
-        Plane plane = null;
+
         public void SetImage(Bitmap Bitmap, bool switchRGB)
         {
             if (switchRGB)
                 Bitmap = Bitmap.SwitchRedBlue(Bitmap);
-            //Bitmap.RotateFlip(RotateFlipType.Rotate180FlipNone);
-            PixelFormat = Bitmap.PixelFormat;
-            SizeX = Bitmap.Width;
-            SizeY = Bitmap.Height;
-            bytes = GetBuffer((Bitmap)Bitmap, Stride);
+            this.PixelFormat = Bitmap.PixelFormat;
+            this.SizeX = Bitmap.Width;
+            this.SizeY = Bitmap.Height;
+            this.bytes = Bitmap.GetBuffer(Bitmap, this.Stride);
         }
+
         public void SetResolution(float w, float h)
         {
-            VerticalResolution = w;
-            HorizontalResolution = h;
+            this.VerticalResolution = w;
+            this.HorizontalResolution = h;
         }
-        public BitmapData LockBits()
-        {
-            return new BitmapData(Data,Stride, Width, Height, PixelFormat);
-        }
-        public BitmapData LockBits(Rectangle r, ImageLockMode l, PixelFormat p)
-        {
-            return new BitmapData(Data, Stride, r.Width, r.Height,p);
-        }
+
+        public BitmapData LockBits() => new BitmapData(this.Data, this.Stride, this.Width, this.Height, this.PixelFormat);
+
+        public BitmapData LockBits(Rectangle r, ImageLockMode l, PixelFormat p) => new BitmapData(this.Data, this.Stride, r.Width, r.Height, p);
+
         public void UnlockBits(BitmapData d)
         {
-
         }
+
         private static int GetStridePadded(int stride)
         {
             if (stride % 4 == 0)
                 return stride;
-            int newstride = stride + 2;
+            int num = stride + 2;
             if (stride % 3 == 0 && stride % 2 != 0)
             {
-                newstride = stride + 1;
-                if (newstride % 4 != 0)
-                    newstride = stride + 3;
+                num = stride + 1;
+                if (num % 4 != 0)
+                    num = stride + 3;
             }
-            if (newstride % 4 != 0)
-                return stride + 5;
-            return newstride;
+            return num % 4 != 0 ? stride + 5 : num;
         }
+
         private static byte[] GetPaddedBuffer(byte[] bts, int w, int h, int stride, PixelFormat px)
         {
-            int newstride = GetStridePadded(stride);
-            if (newstride == stride)
+            int stridePadded = Bitmap.GetStridePadded(stride);
+            if (stridePadded == stride)
                 return bts;
-            byte[] newbts = new byte[newstride * h];
+            byte[] numArray = new byte[stridePadded * h];
             if (px == PixelFormat.Format24bppRgb || px == PixelFormat.Format32bppArgb || px == PixelFormat.Format32bppRgb)
             {
-                for (int y = 0; y < h; ++y)
+                for (int index1 = 0; index1 < h; ++index1)
                 {
-                    for (int x = 0; x < w; ++x)
+                    for (int index2 = 0; index2 < w; ++index2)
                     {
-                        int index = (y * stride) + x;
-                        int index2 = (y * newstride) + x;
-                        newbts[index2] = bts[index];
+                        int index3 = index1 * stride + index2;
+                        int index4 = index1 * stridePadded + index2;
+                        numArray[index4] = bts[index3];
                     }
                 }
             }
             else
             {
-                for (int y = 0; y < h; ++y)
+                for (int index5 = 0; index5 < h; ++index5)
                 {
-                    for (int x = 0; x < w * 2; ++x)
+                    for (int index6 = 0; index6 < w * 2; ++index6)
                     {
-                        int index = (y * stride) + x;
-                        int index2 = (y * newstride) + x;
-                        newbts[index2] = bts[index];
+                        int index7 = index5 * stride + index6;
+                        int index8 = index5 * stridePadded + index6;
+                        numArray[index8] = bts[index7];
                     }
                 }
             }
-            return newbts;
+            return numArray;
         }
-        public static Bitmap[] RGB48To16(string file, int w, int h, int stride, byte[] bts, ZCT coord, int index, Plane plane)
-        {
-            Bitmap[] bfs = new Bitmap[3];
-            Bitmap bmpr = new Bitmap(w, h, PixelFormat.Format16bppGrayScale);
-            Bitmap bmpg = new Bitmap(w, h, PixelFormat.Format16bppGrayScale);
-            Bitmap bmpb = new Bitmap(w, h, PixelFormat.Format16bppGrayScale);
-            unsafe
-            {
-                //iterating through all the pixels in y direction
-                for (int y = 0; y < h; y++)
-                {
-                    //getting the pixels of current row
-                    byte* rowr = (byte*)bmpr.Data + (y * bmpr.Stride);
-                    byte* rowg = (byte*)bmpg.Data + (y * bmpg.Stride);
-                    byte* rowb = (byte*)bmpb.Data + (y * bmpb.Stride);
-                    int rowRGB = y * stride;
-                    //iterating through all the pixels in x direction
-                    for (int x = 0; x < w; x++)
-                    {
-                        int indexRGB = x * 6;
-                        int index16 = x * 2;
-                        //R
-                        rowr[index16 + 1] = bts[rowRGB + indexRGB];
-                        rowr[index16] = bts[rowRGB + indexRGB + 1];
-                        //G
-                        rowg[index16 + 1] = bts[rowRGB + indexRGB + 2];
-                        rowg[index16] = bts[rowRGB + indexRGB + 3];
-                        //B
-                        rowb[index16 + 1] = bts[rowRGB + indexRGB + 4];
-                        rowb[index16] = bts[rowRGB + indexRGB + 5];
 
-                    }
+        public static unsafe Bitmap[] RGB48To16(
+            string file,
+            int w,
+            int h,
+            int stride,
+            byte[] bts,
+            ZCT coord,
+            int index,
+            Plane plane)
+        {
+            Bitmap[] bitmapArray = new Bitmap[3];
+            Bitmap bitmap1 = new Bitmap(w, h, PixelFormat.Format16bppGrayScale);
+            Bitmap bitmap2 = new Bitmap(w, h, PixelFormat.Format16bppGrayScale);
+            Bitmap bitmap3 = new Bitmap(w, h, PixelFormat.Format16bppGrayScale);
+            for (int index1 = 0; index1 < h; ++index1)
+            {
+                byte* numPtr1 = (byte*)((IntPtr)(void*)bitmap1.Data + index1 * bitmap1.Stride);
+                byte* numPtr2 = (byte*)((IntPtr)(void*)bitmap2.Data + index1 * bitmap2.Stride);
+                byte* numPtr3 = (byte*)((IntPtr)(void*)bitmap3.Data + index1 * bitmap3.Stride);
+                int num1 = index1 * stride;
+                for (int index2 = 0; index2 < w; ++index2)
+                {
+                    int num2 = index2 * 6;
+                    int index3 = index2 * 2;
+                    numPtr1[index3 + 1] = bts[num1 + num2];
+                    numPtr1[index3] = bts[num1 + num2 + 1];
+                    numPtr2[index3 + 1] = bts[num1 + num2 + 2];
+                    numPtr2[index3] = bts[num1 + num2 + 3];
+                    numPtr3[index3 + 1] = bts[num1 + num2 + 4];
+                    numPtr3[index3] = bts[num1 + num2 + 5];
                 }
             }
-            
-            bmpr.RotateFlip(RotateFlipType.Rotate180FlipNone);
-            bmpg.RotateFlip(RotateFlipType.Rotate180FlipNone);
-            bmpb.RotateFlip(RotateFlipType.Rotate180FlipNone);
-            bfs[0] = bmpr;
-            bfs[1] = bmpg;
-            bfs[2] = bmpb;
-            bfs[0].file = file;
-            if(plane!=null)
-                bfs[0].plane = plane;
-            bfs[0].ID = CreateID(file, 0);
-            bfs[1].file = file;
+            bitmap1.RotateFlip(RotateFlipType.Rotate180FlipNone);
+            bitmap2.RotateFlip(RotateFlipType.Rotate180FlipNone);
+            bitmap3.RotateFlip(RotateFlipType.Rotate180FlipNone);
+            bitmapArray[0] = bitmap1;
+            bitmapArray[1] = bitmap2;
+            bitmapArray[2] = bitmap3;
+            bitmapArray[0].file = file;
             if (plane != null)
-                bfs[1].plane = plane;
-            bfs[1].ID = CreateID(file, 0);
-            bfs[2].file = file;
+                bitmapArray[0].plane = plane;
+            bitmapArray[0].ID = Bitmap.CreateID(file, 0);
+            bitmapArray[1].file = file;
             if (plane != null)
-                bfs[2].plane = plane;
-            bfs[2].ID = CreateID(file, 0);
-            bfs[0].stats = Statistics.FromBytes(bfs[0]);
-            bfs[1].stats = Statistics.FromBytes(bfs[1]);
-            bfs[2].stats = Statistics.FromBytes(bfs[2]);
-            return bfs;
+                bitmapArray[1].plane = plane;
+            bitmapArray[1].ID = Bitmap.CreateID(file, 0);
+            bitmapArray[2].file = file;
+            if (plane != null)
+                bitmapArray[2].plane = plane;
+            bitmapArray[2].ID = Bitmap.CreateID(file, 0);
+            bitmapArray[0].stats = Statistics.FromBytes(bitmapArray[0]);
+            bitmapArray[1].stats = Statistics.FromBytes(bitmapArray[1]);
+            bitmapArray[2].stats = Statistics.FromBytes(bitmapArray[2]);
+            return bitmapArray;
         }
+
         public static Bitmap RGB16To48(Bitmap[] bfs)
         {
-            //If this is a 2 channel image we fill the last channel with black.
             if (bfs[2] == null)
             {
-                byte[] bt = new byte[bfs[0].SizeY * (bfs[0].SizeX * 2 * 3)];
-                //iterating through all the pixels in y direction
-                for (int y = 0; y < bfs[0].SizeY; y++)
+                byte[] byts = new byte[bfs[0].SizeY * (bfs[0].SizeX * 2 * 3)];
+                for (int index1 = 0; index1 < bfs[0].SizeY; ++index1)
                 {
-                    //getting the pixels of current row
-                    int rowRGB = y * (bfs[0].SizeX * 2 * 3);
-                    int row16 = y * (bfs[0].SizeX * 2);
-                    //iterating through all the pixels in x direction
-                    for (int x = 0; x < bfs[0].SizeX; x++)
+                    int num1 = index1 * (bfs[0].SizeX * 2 * 3);
+                    int num2 = index1 * (bfs[0].SizeX * 2);
+                    for (int index2 = 0; index2 < bfs[0].SizeX; ++index2)
                     {
-                        int indexRGB = x * 6;
-                        int index16 = x * 2;
-                        //R
-                        bt[rowRGB + indexRGB] = 0;
-                        bt[rowRGB + indexRGB + 1] = 0;
-                        //G
-                        bt[rowRGB + indexRGB + 2] = bfs[1].Bytes[row16 + index16];
-                        bt[rowRGB + indexRGB + 3] = bfs[1].Bytes[row16 + index16 + 1];
-                        //B
-                        bt[rowRGB + indexRGB + 4] = bfs[0].Bytes[row16 + index16];
-                        bt[rowRGB + indexRGB + 5] = bfs[0].Bytes[row16 + index16 + 1];
+                        int num3 = index2 * 6;
+                        int num4 = index2 * 2;
+                        byts[num1 + num3] = (byte)0;
+                        byts[num1 + num3 + 1] = (byte)0;
+                        byts[num1 + num3 + 2] = bfs[1].Bytes[num2 + num4];
+                        byts[num1 + num3 + 3] = bfs[1].Bytes[num2 + num4 + 1];
+                        byts[num1 + num3 + 4] = bfs[0].Bytes[num2 + num4];
+                        byts[num1 + num3 + 5] = bfs[0].Bytes[num2 + num4 + 1];
                     }
                 }
-                Bitmap bf = new Bitmap(bfs[0].ID, bfs[0].SizeX, bfs[0].SizeY, PixelFormat.Format48bppRgb, bt, bfs[0].Coordinate, 0, bfs[0].Plane);
-                return bf;
+                return new Bitmap(bfs[0].ID, bfs[0].SizeX, bfs[0].SizeY, PixelFormat.Format48bppRgb, byts, bfs[0].Coordinate, 0, bfs[0].Plane);
             }
-            else
+            byte[] byts1 = new byte[bfs[0].SizeY * (bfs[0].SizeX * 2 * 3)];
+            for (int index3 = 0; index3 < bfs[0].SizeY; ++index3)
             {
-                byte[] bt = new byte[bfs[0].SizeY * (bfs[0].SizeX * 2 * 3)];
-                //iterating through all the pixels in y direction
-                for (int y = 0; y < bfs[0].SizeY; y++)
+                int num5 = index3 * (bfs[0].SizeX * 2 * 3);
+                int num6 = index3 * (bfs[0].SizeX * 2);
+                for (int index4 = 0; index4 < bfs[0].SizeX; ++index4)
                 {
-                    //getting the pixels of current row
-                    int rowRGB = y * (bfs[0].SizeX * 2 * 3);
-                    int row16 = y * (bfs[0].SizeX * 2);
-                    //iterating through all the pixels in x direction
-                    for (int x = 0; x < bfs[0].SizeX; x++)
-                    {
-                        int indexRGB = x * 6;
-                        int index16 = x * 2;
-                        //R
-                        bt[rowRGB + indexRGB] = bfs[2].Bytes[row16 + index16];
-                        bt[rowRGB + indexRGB + 1] = bfs[2].Bytes[row16 + index16 + 1];
-                        //G
-                        bt[rowRGB + indexRGB + 2] = bfs[1].Bytes[row16 + index16];
-                        bt[rowRGB + indexRGB + 3] = bfs[1].Bytes[row16 + index16 + 1];
-                        //B
-                        bt[rowRGB + indexRGB + 4] = bfs[0].Bytes[row16 + index16];
-                        bt[rowRGB + indexRGB + 5] = bfs[0].Bytes[row16 + index16 + 1];
-                    }
+                    int num7 = index4 * 6;
+                    int num8 = index4 * 2;
+                    byts1[num5 + num7] = bfs[2].Bytes[num6 + num8];
+                    byts1[num5 + num7 + 1] = bfs[2].Bytes[num6 + num8 + 1];
+                    byts1[num5 + num7 + 2] = bfs[1].Bytes[num6 + num8];
+                    byts1[num5 + num7 + 3] = bfs[1].Bytes[num6 + num8 + 1];
+                    byts1[num5 + num7 + 4] = bfs[0].Bytes[num6 + num8];
+                    byts1[num5 + num7 + 5] = bfs[0].Bytes[num6 + num8 + 1];
                 }
-                Bitmap bf = new Bitmap(bfs[0].ID, bfs[0].SizeX, bfs[0].SizeY, PixelFormat.Format48bppRgb, bt, bfs[0].Coordinate, 0, bfs[0].Plane);
-                return bf;
             }
+            return new Bitmap(bfs[0].ID, bfs[0].SizeX, bfs[0].SizeY, PixelFormat.Format48bppRgb, byts1, bfs[0].Coordinate, 0, bfs[0].Plane);
         }
+
         public static Bitmap RGB16To48(Bitmap bfs)
         {
-            byte[] bt = new byte[bfs.SizeY * (bfs.SizeX * 2 * 3)];
-            //iterating through all the pixels in y direction
-            for (int y = 0; y < bfs.SizeY; y++)
+            byte[] byts = new byte[bfs.SizeY * (bfs.SizeX * 2 * 3)];
+            for (int index1 = 0; index1 < bfs.SizeY; ++index1)
             {
-                //getting the pixels of current row
-                int rowRGB = y * (bfs.SizeX * 2 * 3);
-                int row16 = y * (bfs.SizeX * 2);
-                //iterating through all the pixels in x direction
-                for (int x = 0; x < bfs.SizeX; x++)
+                int num1 = index1 * (bfs.SizeX * 2 * 3);
+                int num2 = index1 * (bfs.SizeX * 2);
+                for (int index2 = 0; index2 < bfs.SizeX; ++index2)
                 {
-                    int indexRGB = x * 6;
-                    int index16 = x * 2;
-                    //R
-                    bt[rowRGB + indexRGB] = bfs.Bytes[row16 + index16];
-                    bt[rowRGB + indexRGB + 1] = bfs.Bytes[row16 + index16 + 1];
-                    //G
-                    bt[rowRGB + indexRGB + 2] = bfs.Bytes[row16 + index16];
-                    bt[rowRGB + indexRGB + 3] = bfs.Bytes[row16 + index16 + 1];
-                    //B
-                    bt[rowRGB + indexRGB + 4] = bfs.Bytes[row16 + index16];
-                    bt[rowRGB + indexRGB + 5] = bfs.Bytes[row16 + index16 + 1];
+                    int num3 = index2 * 6;
+                    int num4 = index2 * 2;
+                    byts[num1 + num3] = bfs.Bytes[num2 + num4];
+                    byts[num1 + num3 + 1] = bfs.Bytes[num2 + num4 + 1];
+                    byts[num1 + num3 + 2] = bfs.Bytes[num2 + num4];
+                    byts[num1 + num3 + 3] = bfs.Bytes[num2 + num4 + 1];
+                    byts[num1 + num3 + 4] = bfs.Bytes[num2 + num4];
+                    byts[num1 + num3 + 5] = bfs.Bytes[num2 + num4 + 1];
                 }
             }
-            Bitmap bf = new Bitmap(bfs.ID, bfs.SizeX, bfs.SizeY, PixelFormat.Format48bppRgb, bt, bfs.Coordinate, 0, bfs.Plane);
-            return bf;
+            return new Bitmap(bfs.ID, bfs.SizeX, bfs.SizeY, PixelFormat.Format48bppRgb, byts, bfs.Coordinate, 0, bfs.Plane);
         }
-        /// It takes a buffer of RGB data, and returns a bitmap
-        /// 
-        /// @param bfs an array of Bitmap objects.  The first one is the red channel, the second is the green channel, and the third is
-        /// the blue channel.
-        /// @param IntRange 
-        /// @param IntRange 
-        /// @param IntRange 
-        /// 
-        /// @return A Bitmap object.
+
         public static Bitmap GetRGBBitmap(Bitmap[] bfs, IntRange rr, IntRange rg, IntRange rb)
         {
             if (bfs[0].BitsPerPixel > 8)
             {
                 if (bfs[0].isRGB)
                 {
-                    LevelsLinear16bpp filter16 = new LevelsLinear16bpp();
-                    filter16.InRed = rr;
-                    filter16.InGreen = rg;
-                    filter16.InBlue = rb;
-                    Bitmap[] bms = new Bitmap[3];
-                    bms[0] = filter16.Apply(bfs[0]);
-                    bms[1] = filter16.Apply(bfs[1]);
-                    bms[2] = filter16.Apply(bfs[2]);
-                    Bitmap bm = Bitmap.RGB16To48(bms);
-                    bm.SwitchRedBlue();
-                    return bm;
+                    LevelsLinear16bpp levelsLinear16bpp = new LevelsLinear16bpp();
+                    levelsLinear16bpp.InRed = rr;
+                    levelsLinear16bpp.InGreen = rg;
+                    levelsLinear16bpp.InBlue = rb;
+                    Bitmap bitmap = Bitmap.RGB16To48(new Bitmap[3]
+                    {
+        levelsLinear16bpp.Apply(bfs[0]),
+        levelsLinear16bpp.Apply(bfs[1]),
+        levelsLinear16bpp.Apply(bfs[2])
+                    });
+                    bitmap.SwitchRedBlue();
+                    return bitmap;
                 }
-                else
-                {
-                    LevelsLinear16bpp filter16 = new LevelsLinear16bpp();
-                    Bitmap bm = Bitmap.RGB16To48(bfs);
-                    filter16.InRed = rr;
-                    filter16.InGreen = rg;
-                    filter16.InBlue = rb;
-                    Bitmap bmp = filter16.Apply(bm);
-                    bmp.SwitchRedBlue();
-                    return bmp;
-                }
+                LevelsLinear16bpp levelsLinear16bpp1 = new LevelsLinear16bpp();
+                Bitmap image = Bitmap.RGB16To48(bfs);
+                levelsLinear16bpp1.InRed = rr;
+                levelsLinear16bpp1.InGreen = rg;
+                levelsLinear16bpp1.InBlue = rb;
+                Bitmap bitmap1 = levelsLinear16bpp1.Apply(image);
+                bitmap1.SwitchRedBlue();
+                return bitmap1;
             }
-            else
+            if (bfs[0].isRGB)
             {
-                if (bfs[0].isRGB)
+                LevelsLinear levelsLinear = new LevelsLinear();
+                levelsLinear.InRed = rr;
+                levelsLinear.InGreen = rg;
+                levelsLinear.InBlue = rb;
+                Bitmap bitmap = Bitmap.RGB8To24(new Bitmap[3]
                 {
-                    LevelsLinear filter8 = new LevelsLinear();
-                    filter8.InRed = rr;
-                    filter8.InGreen = rg;
-                    filter8.InBlue = rb;
-                    Bitmap[] bms = new Bitmap[3];
-                    bms[0] = filter8.Apply(bfs[0]);
-                    bms[1] = filter8.Apply(bfs[1]);
-                    bms[2] = filter8.Apply(bfs[2]);
-                    Bitmap bm = Bitmap.RGB8To24(bms);
-                    bm.SwitchRedBlue();
-                    return bm;
-                }
-                else
-                {
-                    LevelsLinear filter8 = new LevelsLinear();
-                    Bitmap bm = Bitmap.RGB8To24(bfs);
-                    filter8.InRed = rr;
-                    filter8.InGreen = rg;
-                    filter8.InBlue = rb;
-                    Bitmap bmp = filter8.Apply(bm);
-                    return bmp;
-                }
+        levelsLinear.Apply(bfs[0]),
+        levelsLinear.Apply(bfs[1]),
+        levelsLinear.Apply(bfs[2])
+                });
+                bitmap.SwitchRedBlue();
+                return bitmap;
             }
+            LevelsLinear levelsLinear1 = new LevelsLinear();
+            Bitmap image1 = Bitmap.RGB8To24(bfs);
+            levelsLinear1.InRed = rr;
+            levelsLinear1.InGreen = rg;
+            levelsLinear1.InBlue = rb;
+            return levelsLinear1.Apply(image1);
         }
+
         public static Bitmap GetEmissionBitmap(Bitmap bfs, IntRange rr, Color col)
         {
-            int stride;
-            if (bfs.BitsPerPixel > 8)
-                stride = bfs.SizeX * 3 * 2;
-            else
-                stride = bfs.SizeX * 3;
-            float r = (col.R / 255f);
-            float g = (col.G / 255f);
-            float b = (col.B / 255f);
-
-            int w = bfs.SizeX;
-            int h = bfs.SizeY;
-            byte[] bts = new byte[h * stride];
-
+            int num1 = bfs.BitsPerPixel <= 8 ? bfs.SizeX * 3 : bfs.SizeX * 3 * 2;
+            float num2 = (float)col.R / (float)byte.MaxValue;
+            float num3 = (float)col.G / (float)byte.MaxValue;
+            float num4 = (float)col.B / (float)byte.MaxValue;
+            int sizeX = bfs.SizeX;
+            int sizeY = bfs.SizeY;
+            byte[] numArray = new byte[sizeY * num1];
             if (bfs.BitsPerPixel > 8)
             {
-                for (int y = 0; y < h; y++)
+                for (int index1 = 0; index1 < sizeY; ++index1)
                 {
-                    //getting the pixels of current row
-                    int rowRGB = y * (w * 2 * 3);
-                    int row16 = y * (w * 2);
-                    //iterating through all the pixels in x direction
-                    for (int x = 0; x < w; x++)
+                    int num5 = index1 * (sizeX * 2 * 3);
+                    int num6 = index1 * (sizeX * 2);
+                    for (int index2 = 0; index2 < sizeX; ++index2)
                     {
-                        int indexRGB = x * 6;
-                        int index16 = x * 2;
-
-                        float rf = (BitConverter.ToUInt16(bfs.Bytes, row16 + index16) / (float)ushort.MaxValue) * r;
-                        float gf = (BitConverter.ToUInt16(bfs.Bytes, row16 + index16) / (float)ushort.MaxValue) * g;
-                        float bf = (BitConverter.ToUInt16(bfs.Bytes, row16 + index16) / (float)ushort.MaxValue) * b;
-                        ushort rs = (ushort)(rf * ushort.MaxValue);
-                        ushort gs = (ushort)(gf * ushort.MaxValue);
-                        ushort bs = (ushort)(bf * ushort.MaxValue);
-                        byte[] rbb = BitConverter.GetBytes(rs);
-                        byte[] gbb = BitConverter.GetBytes(gs);
-                        byte[] bbb = BitConverter.GetBytes(bs);
-                        //R
-                        bts[rowRGB + indexRGB] = bbb[0];
-                        bts[rowRGB + indexRGB + 1] = bbb[1];
-                        //G
-                        bts[rowRGB + indexRGB + 2] = gbb[0];
-                        bts[rowRGB + indexRGB + 3] = gbb[1];
-                        //B
-                        bts[rowRGB + indexRGB + 4] = rbb[0];
-                        bts[rowRGB + indexRGB + 5] = rbb[1];
+                        int num7 = index2 * 6;
+                        int num8 = index2 * 2;
+                        float num9 = (float)BitConverter.ToUInt16(bfs.Bytes, num6 + num8) / (float)ushort.MaxValue * num2;
+                        float num10 = (float)BitConverter.ToUInt16(bfs.Bytes, num6 + num8) / (float)ushort.MaxValue * num3;
+                        double num11 = (double)BitConverter.ToUInt16(bfs.Bytes, num6 + num8) / (double)ushort.MaxValue * (double)num4;
+                        ushort num12 = (ushort)((double)num9 * (double)ushort.MaxValue);
+                        ushort num13 = (ushort)((double)num10 * (double)ushort.MaxValue);
+                        int num14 = (int)(ushort)(num11 * (double)ushort.MaxValue);
+                        byte[] bytes1 = BitConverter.GetBytes(num12);
+                        byte[] bytes2 = BitConverter.GetBytes(num13);
+                        byte[] bytes3 = BitConverter.GetBytes((ushort)num14);
+                        numArray[num5 + num7] = bytes3[0];
+                        numArray[num5 + num7 + 1] = bytes3[1];
+                        numArray[num5 + num7 + 2] = bytes2[0];
+                        numArray[num5 + num7 + 3] = bytes2[1];
+                        numArray[num5 + num7 + 4] = bytes1[0];
+                        numArray[num5 + num7 + 5] = bytes1[1];
                     }
                 }
             }
             else
             {
-                for (int y = 0; y < bfs.SizeY; y++)
+                for (int index3 = 0; index3 < bfs.SizeY; ++index3)
                 {
-                    //getting the pixels of current row
-                    int rowRGB = y * (bfs.SizeX * 3);
-                    int row8 = y * (bfs.SizeX);
-                    //iterating through all the pixels in x direction
-                    for (int x = 0; x < bfs.SizeX; x++)
+                    int num15 = index3 * (bfs.SizeX * 3);
+                    int num16 = index3 * bfs.SizeX;
+                    for (int index4 = 0; index4 < bfs.SizeX; ++index4)
                     {
-                        int indexRGB = x * 3;
-                        int index8 = x;
-
-                        float rf = (bfs.Bytes[row8 + index8] / 255f) * r;
-                        float gf = (bfs.Bytes[row8 + index8] / 255f) * g;
-                        float bf = (bfs.Bytes[row8 + index8] / 255f) * b;
-                        byte rs = (byte)(rf * byte.MaxValue);
-                        byte gs = (byte)(gf * byte.MaxValue);
-                        byte bs = (byte)(bf * byte.MaxValue);
-                        //R
-                        bts[rowRGB + indexRGB] = rs;
-                        //G
-                        bts[rowRGB + indexRGB + 1] = gs;
-                        //B
-                        bts[rowRGB + indexRGB + 2] = bs;
+                        int num17 = index4 * 3;
+                        int num18 = index4;
+                        float num19 = (float)bfs.Bytes[num16 + num18] / (float)byte.MaxValue * num2;
+                        float num20 = (float)bfs.Bytes[num16 + num18] / (float)byte.MaxValue * num3;
+                        double num21 = (double)bfs.Bytes[num16 + num18] / (double)byte.MaxValue * (double)num4;
+                        byte num22 = (byte)((double)num19 * (double)byte.MaxValue);
+                        byte num23 = (byte)((double)num20 * (double)byte.MaxValue);
+                        byte num24 = (byte)(num21 * (double)byte.MaxValue);
+                        numArray[num15 + num17] = num22;
+                        numArray[num15 + num17 + 1] = num23;
+                        numArray[num15 + num17 + 2] = num24;
                     }
                 }
             }
-            byte[] bt = new byte[h * (w * 3)];
+            byte[] bts = new byte[sizeY * (sizeX * 3)];
             if (bfs.BitsPerPixel == 8)
             {
-                //iterating through all the pixels in y direction
-                for (int y = 0; y < h; y++)
+                for (int index5 = 0; index5 < sizeY; ++index5)
                 {
-                    int row = y * stride;
-                    int rowRGB = y * w * 3;
-                    //iterating through all the pixels in x direction
-                    for (int x = 0; x < w; x++)
+                    int num25 = index5 * sizeX * 3;
+                    for (int index6 = 0; index6 < sizeX; ++index6)
                     {
-                        int indexRGB = x * 3;
-                        int indexRGBA = x * 3;
-                        float ri = ((float)bts[rowRGB + indexRGB] - rr.Min);
-                        if (ri < 0)
-                            ri = 0;
-                        ri = ri / rr.Max;
-                        float gi = ((float)bts[rowRGB + indexRGB + 1] - rr.Min);
-                        if (gi < 0)
-                            gi = 0;
-                        gi = gi / rr.Max;
-                        float bi = ((float)bts[rowRGB + indexRGB + 2] - rr.Min);
-                        if (bi < 0)
-                            bi = 0;
-                        bi = bi / rr.Max;
-                        bt[rowRGB + indexRGBA + 2] = (byte)(ri * 255);//byte R
-                        bt[rowRGB + indexRGBA + 1] = (byte)(gi * 255);//byte G
-                        bt[rowRGB + indexRGBA] = (byte)(bi * 255);//byte B
+                        int num26 = index6 * 3;
+                        int num27 = index6 * 3;
+                        float num28 = (float)numArray[num25 + num26] - (float)rr.Min;
+                        if ((double)num28 < 0.0)
+                            num28 = 0.0f;
+                        float num29 = num28 / (float)rr.Max;
+                        float num30 = (float)numArray[num25 + num26 + 1] - (float)rr.Min;
+                        if ((double)num30 < 0.0)
+                            num30 = 0.0f;
+                        float num31 = num30 / (float)rr.Max;
+                        float num32 = (float)numArray[num25 + num26 + 2] - (float)rr.Min;
+                        if ((double)num32 < 0.0)
+                            num32 = 0.0f;
+                        float num33 = num32 / (float)rr.Max;
+                        bts[num25 + num27 + 2] = (byte)((double)num29 * (double)byte.MaxValue);
+                        bts[num25 + num27 + 1] = (byte)((double)num31 * (double)byte.MaxValue);
+                        bts[num25 + num27] = (byte)((double)num33 * (double)byte.MaxValue);
                     }
                 }
             }
             else
             {
-                //iterating through all the pixels in y direction
-                for (int y = 0; y < h; y++)
+                for (int index7 = 0; index7 < sizeY; ++index7)
                 {
-                    //getting the pixels of current row
-                    int rowRGB = y * w * 3 * 2;
-                    int row = y * w * 3;
-                    //iterating through all the pixels in x direction
-                    for (int x = 0; x < w; x++)
+                    int num34 = index7 * sizeX * 3 * 2;
+                    int num35 = index7 * sizeX * 3;
+                    for (int index8 = 0; index8 < sizeX; ++index8)
                     {
-                        int indexRGB = x * 6;
-                        int indexRGBA = x * 3;
-                        float ri = ((float)BitConverter.ToUInt16(bts, rowRGB + indexRGB) - rr.Min);
-                        if (ri < 0)
-                            ri = 0;
-                        ri = ri / rr.Max;
-                        float gi = ((float)BitConverter.ToUInt16(bts, rowRGB + indexRGB + 2) - rr.Min);
-                        if (gi < 0)
-                            gi = 0;
-                        gi = gi / rr.Max;
-                        float bi = ((float)BitConverter.ToUInt16(bts, rowRGB + indexRGB + 4) - rr.Min);
-                        if (bi < 0)
-                            bi = 0;
-                        bi = bi / rr.Max;
-                        bt[row + indexRGBA + 2] = (byte)(ri * 255);//byte R
-                        bt[row + indexRGBA + 1] = (byte)(gi * 255);//byte G
-                        bt[row + indexRGBA] = (byte)(bi * 255);//byte B
+                        int num36 = index8 * 6;
+                        int num37 = index8 * 3;
+                        float num38 = (float)BitConverter.ToUInt16(numArray, num34 + num36) - (float)rr.Min;
+                        if ((double)num38 < 0.0)
+                            num38 = 0.0f;
+                        float num39 = num38 / (float)rr.Max;
+                        float num40 = (float)BitConverter.ToUInt16(numArray, num34 + num36 + 2) - (float)rr.Min;
+                        if ((double)num40 < 0.0)
+                            num40 = 0.0f;
+                        float num41 = num40 / (float)rr.Max;
+                        float num42 = (float)BitConverter.ToUInt16(numArray, num34 + num36 + 4) - (float)rr.Min;
+                        if ((double)num42 < 0.0)
+                            num42 = 0.0f;
+                        float num43 = num42 / (float)rr.Max;
+                        bts[num35 + num37 + 2] = (byte)((double)num39 * (double)byte.MaxValue);
+                        bts[num35 + num37 + 1] = (byte)((double)num41 * (double)byte.MaxValue);
+                        bts[num35 + num37] = (byte)((double)num43 * (double)byte.MaxValue);
                     }
                 }
             }
-            bts = null;
-            Bitmap bmp;
-            if (bfs.BitsPerPixel > 8)
-                return GetBitmap(w, h, w * 3, PixelFormat.Format24bppRgb, bt, bfs.Coordinate);
-            else
-                return GetBitmap(w, h, w * 3 * 2, PixelFormat.Format24bppRgb, bt, bfs.Coordinate);
+            return bfs.BitsPerPixel > 8 ? Bitmap.GetBitmap(sizeX, sizeY, sizeX * 3, PixelFormat.Format24bppRgb, bts, bfs.Coordinate) : Bitmap.GetBitmap(sizeX, sizeY, sizeX * 3 * 2, PixelFormat.Format24bppRgb, bts, bfs.Coordinate);
         }
+
         public static Bitmap GetEmissionBitmap(Bitmap[] bfs, Channel[] chans)
         {
-            Bitmap bm = new Bitmap(bfs[0].SizeX, bfs[0].SizeY, PixelFormat.Format24bppRgb);
-            Merge m = new Merge(bm);
-            for (int i = 0; i < chans.Length; i++)
+            Bitmap bitmap = new Bitmap(bfs[0].SizeX, bfs[0].SizeY, PixelFormat.Format24bppRgb);
+            Merge merge = new Merge(bitmap);
+            for (int index = 0; index < chans.Length; ++index)
             {
-                Bitmap b = GetEmissionBitmap(bfs[i], chans[i].range[0], chans[i].EmissionColor);
-                m.OverlayImage = b;
-                m.ApplyInPlace(bm);
+                Bitmap emissionBitmap = Bitmap.GetEmissionBitmap(bfs[index], chans[index].range[0], chans[index].EmissionColor);
+                merge.OverlayImage = emissionBitmap;
+                merge.ApplyInPlace(bitmap);
             }
-            return bm;
+            return bitmap;
         }
+
         public static Bitmap RGB8To24(Bitmap[] bfs)
         {
-            //If this is a 2 channel image we fill the last channel with black.
             if (bfs[2] == null)
             {
-                byte[] bt = new byte[bfs[0].SizeY * (bfs[0].SizeX * 3)];
-                //iterating through all the pixels in y direction
-                for (int y = 0; y < bfs[0].SizeY; y++)
+                byte[] bts = new byte[bfs[0].SizeY * (bfs[0].SizeX * 3)];
+                for (int index1 = 0; index1 < bfs[0].SizeY; ++index1)
                 {
-                    //getting the pixels of current row
-                    int rowRGB = y * (bfs[0].SizeX * 3);
-                    int row8 = y * (bfs[0].SizeX);
-                    //iterating through all the pixels in x direction
-                    for (int x = 0; x < bfs[0].SizeX; x++)
+                    int num1 = index1 * (bfs[0].SizeX * 3);
+                    int num2 = index1 * bfs[0].SizeX;
+                    for (int index2 = 0; index2 < bfs[0].SizeX; ++index2)
                     {
-                        int indexRGB = x * 3;
-                        int index8 = x;
-                        //R
-                        bt[rowRGB + indexRGB] = 0;
-                        //G
-                        bt[rowRGB + indexRGB + 1] = bfs[1].Bytes[row8 + index8];
-                        //B
-                        bt[rowRGB + indexRGB + 2] = bfs[0].Bytes[row8 + index8];
+                        int num3 = index2 * 3;
+                        int num4 = index2;
+                        bts[num1 + num3] = (byte)0;
+                        bts[num1 + num3 + 1] = bfs[1].Bytes[num2 + num4];
+                        bts[num1 + num3 + 2] = bfs[0].Bytes[num2 + num4];
                     }
                 }
-                return new Bitmap(bfs[0].ID, bfs[0].SizeX, bfs[0].SizeY, PixelFormat.Format24bppRgb, bt, bfs[0].Coordinate, 0);
+                return new Bitmap(bfs[0].ID, bfs[0].SizeX, bfs[0].SizeY, PixelFormat.Format24bppRgb, bts, bfs[0].Coordinate, 0);
             }
-            else
+            byte[] bts1 = new byte[bfs[0].SizeY * (bfs[0].SizeX * 3)];
+            for (int index3 = 0; index3 < bfs[0].SizeY; ++index3)
             {
-                byte[] bt = new byte[bfs[0].SizeY * (bfs[0].SizeX * 3)];
-                //iterating through all the pixels in y direction
-                for (int y = 0; y < bfs[0].SizeY; y++)
+                int num5 = index3 * (bfs[0].SizeX * 3);
+                int num6 = index3 * bfs[0].SizeX;
+                for (int index4 = 0; index4 < bfs[0].SizeX; ++index4)
                 {
-                    //getting the pixels of current row
-                    int rowRGB = y * (bfs[0].SizeX * 3);
-                    int row8 = y * (bfs[0].SizeX);
-                    //iterating through all the pixels in x direction
-                    for (int x = 0; x < bfs[0].SizeX; x++)
-                    {
-                        int indexRGB = x * 3;
-                        int index8 = x;
-                        //R
-                        bt[rowRGB + indexRGB] = bfs[2].Bytes[row8 + index8];
-                        //G
-                        bt[rowRGB + indexRGB + 1] = bfs[1].Bytes[row8 + index8];
-                        //B
-                        bt[rowRGB + indexRGB + 2] = bfs[0].Bytes[row8 + index8];
-                    }
+                    int num7 = index4 * 3;
+                    int num8 = index4;
+                    bts1[num5 + num7] = bfs[2].Bytes[num6 + num8];
+                    bts1[num5 + num7 + 1] = bfs[1].Bytes[num6 + num8];
+                    bts1[num5 + num7 + 2] = bfs[0].Bytes[num6 + num8];
                 }
-                return new Bitmap(bfs[0].ID, bfs[0].SizeX, bfs[0].SizeY, PixelFormat.Format24bppRgb, bt, bfs[0].Coordinate, 0);
             }
+            return new Bitmap(bfs[0].ID, bfs[0].SizeX, bfs[0].SizeY, PixelFormat.Format24bppRgb, bts1, bfs[0].Coordinate, 0);
         }
+
         public static Bitmap RGB8To24(Bitmap bfs)
         {
-            byte[] bt = new byte[bfs.SizeY * (bfs.SizeX * 3)];
-            //iterating through all the pixels in y direction
-            for (int y = 0; y < bfs.SizeY; y++)
+            byte[] bts = new byte[bfs.SizeY * (bfs.SizeX * 3)];
+            for (int index1 = 0; index1 < bfs.SizeY; ++index1)
             {
-                //getting the pixels of current row
-                int rowRGB = y * (bfs.SizeX * 3);
-                int row8 = y * (bfs.SizeX);
-                //iterating through all the pixels in x direction
-                for (int x = 0; x < bfs.SizeX; x++)
+                int num1 = index1 * (bfs.SizeX * 3);
+                int num2 = index1 * bfs.SizeX;
+                for (int index2 = 0; index2 < bfs.SizeX; ++index2)
                 {
-                    int indexRGB = x * 3;
-                    int index8 = x;
-                    //R
-                    bt[rowRGB + indexRGB] = bfs.Bytes[row8 + index8];
-                    //G
-                    bt[rowRGB + indexRGB + 1] = bfs.Bytes[row8 + index8];
-                    //B
-                    bt[rowRGB + indexRGB + 2] = bfs.Bytes[row8 + index8];
+                    int num3 = index2 * 3;
+                    int num4 = index2;
+                    bts[num1 + num3] = bfs.Bytes[num2 + num4];
+                    bts[num1 + num3 + 1] = bfs.Bytes[num2 + num4];
+                    bts[num1 + num3 + 2] = bfs.Bytes[num2 + num4];
                 }
             }
-            Bitmap bf = new Bitmap(bfs.ID, bfs.SizeX, bfs.SizeY, PixelFormat.Format24bppRgb, bt, bfs.Coordinate, 0);
-            return bf;
+            return new Bitmap(bfs.ID, bfs.SizeX, bfs.SizeY, PixelFormat.Format24bppRgb, bts, bfs.Coordinate, 0);
         }
+
         public static Bitmap[] RGB24To8(Bitmap info)
         {
-            Bitmap[] bfs = new Bitmap[3];
-            ExtractChannel cr = new ExtractChannel((short)0);
-            ExtractChannel cg = new ExtractChannel((short)1);
-            ExtractChannel cb = new ExtractChannel((short)2);
-            bfs[0] = cr.Apply(info);
-            bfs[1] = cg.Apply(info);
-            bfs[2] = cb.Apply(info);
-            cr = null;
-            cg = null;
-            cb = null;
-            return bfs;
+            Bitmap[] bitmapArray = new Bitmap[3];
+            ExtractChannel extractChannel1 = new ExtractChannel((short)0);
+            ExtractChannel extractChannel2 = new ExtractChannel((short)1);
+            ExtractChannel extractChannel3 = new ExtractChannel((short)2);
+            bitmapArray[0] = extractChannel1.Apply(info);
+            bitmapArray[1] = extractChannel2.Apply(info);
+            bitmapArray[2] = extractChannel3.Apply(info);
+            return bitmapArray;
         }
-        public static unsafe Bitmap GetBitmap(int w, int h, int stride, PixelFormat px, byte[] bts, ZCT coord)
+
+        public static Bitmap GetBitmap(
+            int w,
+            int h,
+            int stride,
+            PixelFormat px,
+            byte[] bts,
+            ZCT coord)
         {
-                if (stride % 4 == 0)
-                {
-                    return new Bitmap(w, h, px, bts, coord, "");//new UnmanagedImage(new IntPtr((void*)numPtr1), w, h, stride, px);
-                }
-                int newstride = GetStridePadded(stride);
-                byte[] newbts = GetPaddedBuffer(bts, w, h, stride, px);
-                return new Bitmap(w, h, px, newbts, coord, "");
+            if (stride % 4 == 0)
+                return new Bitmap(w, h, px, bts, coord, "");
+            Bitmap.GetStridePadded(stride);
+            byte[] paddedBuffer = Bitmap.GetPaddedBuffer(bts, w, h, stride, px);
+            return new Bitmap(w, h, px, paddedBuffer, coord, "");
         }
+
         public void RotateFlip(RotateFlipType rot)
         {
-            byte[] rotatedBuffer = new byte[Bytes.Length];
-            int ps = (GetPixelFormatSize(pixelFormat) / 8);
+            byte[] numArray1 = new byte[this.Bytes.Length];
+            int length = Bitmap.GetPixelFormatSize(this.pixelFormat) / 8;
             if (rot == RotateFlipType.Rotate180FlipNone || rot == RotateFlipType.Rotate180FlipX || rot == RotateFlipType.Rotate180FlipY || rot == RotateFlipType.Rotate180FlipXY)
             {
-                for (int i = 0; i < Bytes.Length; i += PixelFormatSize)
+                for (int index1 = 0; index1 < this.Bytes.Length; index1 += this.PixelFormatSize)
                 {
-                    int rotatedIndex = Bytes.Length - PixelFormatSize - i;
-                    for (int p = 0; p < PixelFormatSize; p++)
-                    {
-                        rotatedBuffer[i + p] = Bytes[rotatedIndex + p];
-                    }
+                    int num = this.Bytes.Length - this.PixelFormatSize - index1;
+                    for (int index2 = 0; index2 < this.PixelFormatSize; ++index2)
+                        numArray1[index1 + index2] = this.Bytes[num + index2];
                 }
-                Bytes = rotatedBuffer;
+                this.Bytes = numArray1;
             }
             else if (rot == RotateFlipType.Rotate90FlipNone || rot == RotateFlipType.Rotate90FlipX || rot == RotateFlipType.Rotate90FlipY || rot == RotateFlipType.Rotate90FlipXY)
             {
-                for (int y = 0; y < Height; y++)
+                for (int index3 = 0; index3 < this.Height; ++index3)
                 {
-                    for (int x = 0; x < Width; x++)
+                    for (int index4 = 0; index4 < this.Width; ++index4)
                     {
-                        int sourceIndex = (y * Width + x) * ps;
-                        int targetIndex = ((Width - x - 1) * Height + y) * ps;
-                        Array.Copy(Bytes, sourceIndex, rotatedBuffer, targetIndex, ps);
+                        int sourceIndex = (index3 * this.Width + index4) * length;
+                        int destinationIndex = ((this.Width - index4 - 1) * this.Height + index3) * length;
+                        Array.Copy((Array)this.Bytes, sourceIndex, (Array)numArray1, destinationIndex, length);
                     }
                 }
-                Bytes = rotatedBuffer;
-                int w = Width;
-                SizeX = Height;
-                SizeY = w;
+                this.Bytes = numArray1;
+                int width = this.Width;
+                this.SizeX = this.Height;
+                this.SizeY = width;
             }
             else if (rot == RotateFlipType.Rotate270FlipNone || rot == RotateFlipType.Rotate270FlipX || rot == RotateFlipType.Rotate270FlipY || rot == RotateFlipType.Rotate270FlipXY)
             {
-                for (int y = 0; y < Height; y++)
+                for (int index5 = 0; index5 < this.Height; ++index5)
                 {
-                    for (int x = 0; x < Width; x++)
+                    for (int index6 = 0; index6 < this.Width; ++index6)
                     {
-                        int sourceIndex = (y * Width + x) * ps;
-                        int targetIndex = (x * Height + Height - y - 1) * ps;
-                        Array.Copy(Bytes, sourceIndex, rotatedBuffer, targetIndex, ps);
+                        int sourceIndex = (index5 * this.Width + index6) * length;
+                        int destinationIndex = (index6 * this.Height + this.Height - index5 - 1) * length;
+                        Array.Copy((Array)this.Bytes, sourceIndex, (Array)numArray1, destinationIndex, length);
                     }
                 }
-                int w = Width;
-                SizeX = Height;
-                SizeY = w;
-                Bytes = rotatedBuffer;
+                int width = this.Width;
+                this.SizeX = this.Height;
+                this.SizeY = width;
+                this.Bytes = numArray1;
             }
-            
             if (rot == RotateFlipType.RotateNoneFlipY || rot == RotateFlipType.Rotate90FlipY || rot == RotateFlipType.Rotate180FlipY || rot == RotateFlipType.Rotate270FlipY)
             {
-                rotatedBuffer = new byte[Bytes.Length];
-                for (int y = 0; y < Height; y++)
+                byte[] numArray2 = new byte[this.Bytes.Length];
+                for (int index7 = 0; index7 < this.Height; ++index7)
                 {
-                    for (int x = 0; x < Width; x++)
+                    for (int index8 = 0; index8 < this.Width; ++index8)
                     {
-                        int sourceIndex = (y * Width + x) * ps;
-                        int targetIndex = (y * Width + Width - x - 1) * ps;
-                        Array.Copy(Bytes, sourceIndex, rotatedBuffer, targetIndex, ps);
+                        int sourceIndex = (index7 * this.Width + index8) * length;
+                        int destinationIndex = (index7 * this.Width + this.Width - index8 - 1) * length;
+                        Array.Copy((Array)this.Bytes, sourceIndex, (Array)numArray2, destinationIndex, length);
                     }
                 }
-                Bytes = rotatedBuffer;
+                this.Bytes = numArray2;
             }
-            else if (rot == RotateFlipType.RotateNoneFlipX || rot == RotateFlipType.Rotate90FlipX || rot == RotateFlipType.Rotate180FlipX || rot == RotateFlipType.Rotate270FlipX)
+            else
             {
-                rotatedBuffer = new byte[Bytes.Length];
-                for (int y = 0; y < Height; y++)
+                if (rot != RotateFlipType.RotateNoneFlipX && rot != RotateFlipType.Rotate90FlipX && rot != RotateFlipType.Rotate180FlipX && rot != RotateFlipType.Rotate270FlipX)
+                    return;
+                byte[] numArray3 = new byte[this.Bytes.Length];
+                for (int index9 = 0; index9 < this.Height; ++index9)
                 {
-                    for (int x = 0; x < Width; x++)
+                    for (int index10 = 0; index10 < this.Width; ++index10)
                     {
-                        int sourceIndex = (y * Width + x) * ps;
-                        int targetIndex = ((Height - y - 1) * Width + x) * ps;
-                        Array.Copy(Bytes, sourceIndex, rotatedBuffer, targetIndex, ps);
+                        int sourceIndex = (index9 * this.Width + index10) * length;
+                        int destinationIndex = ((this.Height - index9 - 1) * this.Width + index10) * length;
+                        Array.Copy((Array)this.Bytes, sourceIndex, (Array)numArray3, destinationIndex, length);
                     }
                 }
-                Bytes = rotatedBuffer;
+                this.Bytes = numArray3;
             }
-            
         }
+
         public static unsafe Bitmap GetBitmapRGB(int w, int h, PixelFormat px, byte[] bts)
         {
-            if (px == PixelFormat.Format32bppArgb)
+            switch (px)
             {
-                //opening a 8 bit per pixel jpg image
-                Bitmap bmp = new Bitmap(w, h, PixelFormat.Format32bppArgb);
-                //creating the Bitmapdata and lock bits
-                Rectangle rec = new Rectangle(0, 0, w, h);
-                BitmapData bmd = bmp.LockBits(rec, ImageLockMode.ReadWrite, bmp.PixelFormat);
-                //iterating through all the pixels in y direction
-                for (int y = 0; y < h; y++)
-                {
-                    //getting the pixels of current row
-                    byte* row = (byte*)bmd.Scan0 + (y * bmd.Stride);
-                    int rowRGB = y * w * 4;
-                    //iterating through all the pixels in x direction
-                    for (int x = 0; x < w; x++)
+                case PixelFormat.Format8bppIndexed:
+                    Bitmap bitmap1 = new Bitmap(w, h, PixelFormat.Format32bppArgb);
+                    Rectangle r1 = new Rectangle(0, 0, w, h);
+                    BitmapData d1 = bitmap1.LockBits(r1, ImageLockMode.ReadWrite, bitmap1.PixelFormat);
+                    for (int index1 = 0; index1 < h; ++index1)
                     {
-                        int indexRGB = x * 4;
-                        int indexRGBA = x * 4;
-                        row[indexRGBA + 3] = bts[rowRGB + indexRGB + 3];//byte A
-                        row[indexRGBA + 2] = bts[rowRGB + indexRGB + 2];//byte R
-                        row[indexRGBA + 1] = bts[rowRGB + indexRGB + 1];//byte G
-                        row[indexRGBA] = bts[rowRGB + indexRGB];//byte B
-                    }
-                }
-                //unlocking bits and disposing image
-                bmp.UnlockBits(bmd);
-                return bmp;
-            }
-            else if (px == PixelFormat.Format24bppRgb)
-            {
-                //opening a 8 bit per pixel jpg image
-                Bitmap bmp = new Bitmap(w, h, PixelFormat.Format32bppArgb);
-                //creating the Bitmapdata and lock bits
-                Rectangle rec = new Rectangle(0, 0, w, h);
-                BitmapData bmd = bmp.LockBits(rec, ImageLockMode.ReadWrite, bmp.PixelFormat);
-                //iterating through all the pixels in y direction
-                for (int y = 0; y < h; y++)
-                {
-                    //getting the pixels of current row
-                    byte* row = (byte*)bmd.Scan0 + (y * bmd.Stride);
-                    int rowRGB = y * w * 3;
-                    //iterating through all the pixels in x direction
-                    for (int x = 0; x < w; x++)
-                    {
-                        int indexRGB = x * 3;
-                        int indexRGBA = x * 4;
-                        row[indexRGBA + 3] = byte.MaxValue;//byte A
-                        row[indexRGBA + 2] = bts[rowRGB + indexRGB + 2];//byte R
-                        row[indexRGBA + 1] = bts[rowRGB + indexRGB + 1];//byte G
-                        row[indexRGBA] = bts[rowRGB + indexRGB];//byte B
-                    }
-                }
-                //unlocking bits and disposing image
-                bmp.UnlockBits(bmd);
-                return bmp;
-            }
-            else
-            if (px == PixelFormat.Format48bppRgb)
-            {
-                //opening a 8 bit per pixel jpg image
-                Bitmap bmp = new Bitmap(w, h, PixelFormat.Format32bppArgb);
-                //creating the Bitmapdata and lock bits
-                Rectangle rec = new Rectangle(0, 0, w, h);
-                BitmapData bmd = bmp.LockBits(rec, ImageLockMode.ReadWrite, bmp.PixelFormat);
-                unsafe
-                {
-                    //iterating through all the pixels in y direction
-                    for (int y = 0; y < h; y++)
-                    {
-                        //getting the pixels of current row
-                        byte* row = (byte*)bmd.Scan0 + (y * bmd.Stride);
-                        int rowRGB = y * w * 6;
-                        //iterating through all the pixels in x direction
-                        for (int x = 0; x < w; x++)
+                        byte* numPtr = (byte*)((IntPtr)(void*)d1.Scan0 + index1 * d1.Stride);
+                        int num1 = index1 * w;
+                        for (int index2 = 0; index2 < w; ++index2)
                         {
-                            int indexRGB = x * 6;
-                            int indexRGBA = x * 4;
-                            int b = (int)( ((float)BitConverter.ToUInt16(bts, rowRGB + indexRGB) / (float)ushort.MaxValue) * 255);
-                            int g = (int)( ((float)BitConverter.ToUInt16(bts, rowRGB + indexRGB + 2) / (float)ushort.MaxValue) * 255);
-                            int r = (int)( ((float)BitConverter.ToUInt16(bts, rowRGB + indexRGB + 4) / (float)ushort.MaxValue) * 255);
-                            row[indexRGBA + 3] = 255;//byte A
-                            row[indexRGBA + 2] = (byte)(b);//byte R
-                            row[indexRGBA + 1] = (byte)(g);//byte G
-                            row[indexRGBA] = (byte)(r);//byte B
+                            int num2 = index2;
+                            int index3 = index2 * 4;
+                            byte bt = bts[num1 + num2];
+                            numPtr[index3 + 3] = byte.MaxValue;
+                            numPtr[index3 + 2] = bt;
+                            numPtr[index3 + 1] = bt;
+                            numPtr[index3] = bt;
                         }
                     }
-                }
-                bmp.UnlockBits(bmd);
-                return bmp;
-            }
-            else
-            if (px == PixelFormat.Format8bppIndexed)
-            {
-                //opening a 8 bit per pixel jpg image
-                Bitmap bmp = new Bitmap(w, h, PixelFormat.Format32bppArgb);
-                //creating the Bitmapdata and lock bits
-                Rectangle rec = new Rectangle(0, 0, w, h);
-                BitmapData bmd = bmp.LockBits(rec, ImageLockMode.ReadWrite, bmp.PixelFormat);
-                unsafe
-                {
-                    //iterating through all the pixels in y direction
-                    for (int y = 0; y < h; y++)
+                    bitmap1.UnlockBits(d1);
+                    return bitmap1;
+                case PixelFormat.Format16bppGrayScale:
+                    Bitmap bitmap2 = new Bitmap(w, h, PixelFormat.Format32bppArgb);
+                    Rectangle r2 = new Rectangle(0, 0, w, h);
+                    BitmapData d2 = bitmap2.LockBits(r2, ImageLockMode.ReadWrite, bitmap2.PixelFormat);
+                    for (int index4 = 0; index4 < h; ++index4)
                     {
-                        //getting the pixels of current row
-                        byte* row = (byte*)bmd.Scan0 + (y * bmd.Stride);
-                        int rowRGB = y * w;
-                        //iterating through all the pixels in x direction
-                        for (int x = 0; x < w; x++)
+                        byte* numPtr = (byte*)((IntPtr)(void*)d2.Scan0 + index4 * d2.Stride);
+                        int num3 = index4 * w * 2;
+                        for (int index5 = 0; index5 < w; ++index5)
                         {
-                            int indexRGB = x;
-                            int indexRGBA = x * 4;
-                            byte b = bts[rowRGB + indexRGB];
-                            row[indexRGBA + 3] = 255;//byte A
-                            row[indexRGBA + 2] = (byte)(b);//byte R
-                            row[indexRGBA + 1] = (byte)(b);//byte G
-                            row[indexRGBA] = (byte)(b);//byte B
+                            int num4 = index5 * 2;
+                            int index6 = index5 * 4;
+                            int num5 = (int)((double)BitConverter.ToUInt16(bts, num3 + num4) / (double)ushort.MaxValue * (double)byte.MaxValue);
+                            numPtr[index6 + 3] = byte.MaxValue;
+                            numPtr[index6 + 2] = (byte)num5;
+                            numPtr[index6 + 1] = (byte)num5;
+                            numPtr[index6] = (byte)num5;
                         }
                     }
-                }
-                bmp.UnlockBits(bmd);
-                return bmp;
-            }
-            else
-            if (px == PixelFormat.Format16bppGrayScale)
-            {
-                //opening a 8 bit per pixel jpg image
-                Bitmap bmp = new Bitmap(w, h, PixelFormat.Format32bppArgb);
-                //creating the Bitmapdata and lock bits
-                Rectangle rec = new Rectangle(0, 0, w, h);
-                BitmapData bmd = bmp.LockBits(rec, ImageLockMode.ReadWrite, bmp.PixelFormat);
-                unsafe
-                {
-                    //iterating through all the pixels in y direction
-                    for (int y = 0; y < h; y++)
+                    bitmap2.UnlockBits(d2);
+                    return bitmap2;
+                case PixelFormat.Format24bppRgb:
+                    Bitmap bitmap3 = new Bitmap(w, h, PixelFormat.Format32bppArgb);
+                    Rectangle r3 = new Rectangle(0, 0, w, h);
+                    BitmapData d3 = bitmap3.LockBits(r3, ImageLockMode.ReadWrite, bitmap3.PixelFormat);
+                    for (int index7 = 0; index7 < h; ++index7)
                     {
-                        //getting the pixels of current row
-                        byte* row = (byte*)bmd.Scan0 + (y * bmd.Stride);
-                        int rowRGB = y * w * 2;
-                        //iterating through all the pixels in x direction
-                        for (int x = 0; x < w; x++)
+                        byte* numPtr = (byte*)((IntPtr)(void*)d3.Scan0 + index7 * d3.Stride);
+                        int num6 = index7 * w * 3;
+                        for (int index8 = 0; index8 < w; ++index8)
                         {
-                            int indexRGB = x * 2;
-                            int indexRGBA = x * 4;
-                            int b = (int)(((float)BitConverter.ToUInt16(bts, rowRGB + indexRGB) / (float)ushort.MaxValue) * 255);
-                            row[indexRGBA + 3] = 255;//byte A
-                            row[indexRGBA + 2] = (byte)(b);//byte R
-                            row[indexRGBA + 1] = (byte)(b);//byte G
-                            row[indexRGBA] = (byte)(b);//byte B
+                            int num7 = index8 * 3;
+                            int index9 = index8 * 4;
+                            numPtr[index9 + 3] = byte.MaxValue;
+                            numPtr[index9 + 2] = bts[num6 + num7 + 2];
+                            numPtr[index9 + 1] = bts[num6 + num7 + 1];
+                            numPtr[index9] = bts[num6 + num7];
                         }
                     }
-                }
-                bmp.UnlockBits(bmd);
-                return bmp;
+                    bitmap3.UnlockBits(d3);
+                    return bitmap3;
+                case PixelFormat.Format32bppArgb:
+                    Bitmap bitmap4 = new Bitmap(w, h, PixelFormat.Format32bppArgb);
+                    Rectangle r4 = new Rectangle(0, 0, w, h);
+                    BitmapData d4 = bitmap4.LockBits(r4, ImageLockMode.ReadWrite, bitmap4.PixelFormat);
+                    for (int index10 = 0; index10 < h; ++index10)
+                    {
+                        byte* numPtr = (byte*)((IntPtr)(void*)d4.Scan0 + index10 * d4.Stride);
+                        int num8 = index10 * w * 4;
+                        for (int index11 = 0; index11 < w; ++index11)
+                        {
+                            int num9 = index11 * 4;
+                            int index12 = index11 * 4;
+                            numPtr[index12 + 3] = bts[num8 + num9 + 3];
+                            numPtr[index12 + 2] = bts[num8 + num9 + 2];
+                            numPtr[index12 + 1] = bts[num8 + num9 + 1];
+                            numPtr[index12] = bts[num8 + num9];
+                        }
+                    }
+                    bitmap4.UnlockBits(d4);
+                    return bitmap4;
+                case PixelFormat.Format48bppRgb:
+                    Bitmap bitmap5 = new Bitmap(w, h, PixelFormat.Format32bppArgb);
+                    Rectangle r5 = new Rectangle(0, 0, w, h);
+                    BitmapData d5 = bitmap5.LockBits(r5, ImageLockMode.ReadWrite, bitmap5.PixelFormat);
+                    for (int index13 = 0; index13 < h; ++index13)
+                    {
+                        byte* numPtr = (byte*)((IntPtr)(void*)d5.Scan0 + index13 * d5.Stride);
+                        int num10 = index13 * w * 6;
+                        for (int index14 = 0; index14 < w; ++index14)
+                        {
+                            int num11 = index14 * 6;
+                            int index15 = index14 * 4;
+                            int num12 = (int)((double)BitConverter.ToUInt16(bts, num10 + num11) / (double)ushort.MaxValue * (double)byte.MaxValue);
+                            int num13 = (int)((double)BitConverter.ToUInt16(bts, num10 + num11 + 2) / (double)ushort.MaxValue * (double)byte.MaxValue);
+                            int num14 = (int)((double)BitConverter.ToUInt16(bts, num10 + num11 + 4) / (double)ushort.MaxValue * (double)byte.MaxValue);
+                            numPtr[index15 + 3] = byte.MaxValue;
+                            numPtr[index15 + 2] = (byte)num12;
+                            numPtr[index15 + 1] = (byte)num13;
+                            numPtr[index15] = (byte)num14;
+                        }
+                    }
+                    bitmap5.UnlockBits(d5);
+                    return bitmap5;
+                default:
+                    throw new NotSupportedException("Pixelformat " + px.ToString() + " is not supported.");
             }
-
-            throw new NotSupportedException("Pixelformat " + px + " is not supported.");
         }
+
         public static unsafe IntPtr GetRGB32Data(int w, int h, PixelFormat px, byte[] bts)
         {
-            if(px == PixelFormat.Format32bppArgb || px == PixelFormat.Format32bppRgb)
+            switch (px)
             {
-                fixed (byte* dat = bts)
-                {
-                    return (IntPtr)dat;
-                }
-            }
-            if (px == PixelFormat.Format24bppRgb)
-            {
-                //opening a 8 bit per pixel jpg image
-                Bitmap bmp = new Bitmap(w, h, PixelFormat.Format32bppArgb);
-                //creating the Bitmapdata and lock bits
-                Rectangle rec = new Rectangle(0, 0, w, h);
-                BitmapData bmd = bmp.LockBits(rec, ImageLockMode.ReadWrite, bmp.PixelFormat);
-                //iterating through all the pixels in y direction
-                for (int y = 0; y < h; y++)
-                {
-                    //getting the pixels of current row
-                    byte* row = (byte*)bmd.Scan0 + (y * bmd.Stride);
-                    int rowRGB = y * w * 3;
-                    //iterating through all the pixels in x direction
-                    for (int x = 0; x < w; x++)
+                case PixelFormat.Format8bppIndexed:
+                    Bitmap bitmap1 = new Bitmap(w, h, PixelFormat.Format32bppArgb);
+                    Rectangle r1 = new Rectangle(0, 0, w, h);
+                    BitmapData d1 = bitmap1.LockBits(r1, ImageLockMode.ReadWrite, bitmap1.PixelFormat);
+                    for (int index1 = 0; index1 < h; ++index1)
                     {
-                        int indexRGB = x * 3;
-                        int indexRGBA = x * 4;
-                        row[indexRGBA + 3] = byte.MaxValue;//byte A
-                        row[indexRGBA + 2] = bts[rowRGB + indexRGB + 2];//byte R
-                        row[indexRGBA + 1] = bts[rowRGB + indexRGB + 1];//byte G
-                        row[indexRGBA] = bts[rowRGB + indexRGB];//byte B
-                    }
-                }
-                //unlocking bits and disposing image
-                bmp.UnlockBits(bmd);
-                return bmd.Scan0;
-            }
-            else
-            if (px == PixelFormat.Format48bppRgb)
-            {
-                //opening a 8 bit per pixel jpg image
-                Bitmap bmp = new Bitmap(w, h, PixelFormat.Format32bppArgb);
-                //creating the Bitmapdata and lock bits
-                Rectangle rec = new Rectangle(0, 0, w, h);
-                BitmapData bmd = bmp.LockBits(rec, ImageLockMode.ReadWrite, bmp.PixelFormat);
-                unsafe
-                {
-                    //iterating through all the pixels in y direction
-                    for (int y = 0; y < h; y++)
-                    {
-                        //getting the pixels of current row
-                        byte* row = (byte*)bmd.Scan0 + (y * bmd.Stride);
-                        int rowRGB = y * w * 6;
-                        //iterating through all the pixels in x direction
-                        for (int x = 0; x < w; x++)
+                        byte* numPtr = (byte*)((IntPtr)(void*)d1.Scan0 + index1 * d1.Stride);
+                        int num1 = index1 * w;
+                        for (int index2 = 0; index2 < w; ++index2)
                         {
-                            int indexRGB = x * 6;
-                            int indexRGBA = x * 4;
-                            int b = (int)((float)BitConverter.ToUInt16(bts, rowRGB + indexRGB) / 255);
-                            int g = (int)((float)BitConverter.ToUInt16(bts, rowRGB + indexRGB + 2) / 255);
-                            int r = (int)((float)BitConverter.ToUInt16(bts, rowRGB + indexRGB + 4) / 255);
-                            row[indexRGBA + 3] = 255;//byte A
-                            row[indexRGBA + 2] = (byte)(b);//byte R
-                            row[indexRGBA + 1] = (byte)(g);//byte G
-                            row[indexRGBA] = (byte)(r);//byte B
+                            int num2 = index2;
+                            int index3 = index2 * 4;
+                            byte bt = bts[num1 + num2];
+                            numPtr[index3 + 3] = byte.MaxValue;
+                            numPtr[index3 + 2] = bt;
+                            numPtr[index3 + 1] = bt;
+                            numPtr[index3] = bt;
                         }
                     }
-                }
-                bmp.UnlockBits(bmd);
-                return bmd.Scan0;
-            }
-            else
-            if (px == PixelFormat.Format8bppIndexed)
-            {
-                //opening a 8 bit per pixel jpg image
-                Bitmap bmp = new Bitmap(w, h, PixelFormat.Format32bppArgb);
-                //creating the Bitmapdata and lock bits
-                Rectangle rec = new Rectangle(0, 0, w, h);
-                BitmapData bmd = bmp.LockBits(rec, ImageLockMode.ReadWrite, bmp.PixelFormat);
-                unsafe
-                {
-                    //iterating through all the pixels in y direction
-                    for (int y = 0; y < h; y++)
+                    bitmap1.UnlockBits(d1);
+                    return d1.Scan0;
+                case PixelFormat.Format16bppGrayScale:
+                    Bitmap bitmap2 = new Bitmap(w, h, PixelFormat.Format32bppArgb);
+                    Rectangle r2 = new Rectangle(0, 0, w, h);
+                    BitmapData d2 = bitmap2.LockBits(r2, ImageLockMode.ReadWrite, bitmap2.PixelFormat);
+                    for (int index4 = 0; index4 < h; ++index4)
                     {
-                        //getting the pixels of current row
-                        byte* row = (byte*)bmd.Scan0 + (y * bmd.Stride);
-                        int rowRGB = y * w;
-                        //iterating through all the pixels in x direction
-                        for (int x = 0; x < w; x++)
+                        byte* numPtr = (byte*)((IntPtr)(void*)d2.Scan0 + index4 * d2.Stride);
+                        int num3 = index4 * w * 2;
+                        for (int index5 = 0; index5 < w; ++index5)
                         {
-                            int indexRGB = x;
-                            int indexRGBA = x * 4;
-                            byte b = bts[rowRGB + indexRGB];
-                            row[indexRGBA + 3] = 255;//byte A
-                            row[indexRGBA + 2] = (byte)(b);//byte R
-                            row[indexRGBA + 1] = (byte)(b);//byte G
-                            row[indexRGBA] = (byte)(b);//byte B
+                            int num4 = index5 * 2;
+                            int index6 = index5 * 4;
+                            ushort num5 = (ushort)((double)BitConverter.ToUInt16(bts, num3 + num4) / (double)byte.MaxValue);
+                            numPtr[index6 + 3] = byte.MaxValue;
+                            numPtr[index6 + 2] = (byte)num5;
+                            numPtr[index6 + 1] = (byte)num5;
+                            numPtr[index6] = (byte)num5;
                         }
                     }
-                }
-                bmp.UnlockBits(bmd);
-                return bmd.Scan0;
-            }
-            else
-            if (px == PixelFormat.Format16bppGrayScale)
-            {
-                //opening a 8 bit per pixel jpg image
-                Bitmap bmp = new Bitmap(w, h, PixelFormat.Format32bppArgb);
-                //creating the Bitmapdata and lock bits
-                Rectangle rec = new Rectangle(0, 0, w, h);
-                BitmapData bmd = bmp.LockBits(rec, ImageLockMode.ReadWrite, bmp.PixelFormat);
-                unsafe
-                {
-                    //iterating through all the pixels in y direction
-                    for (int y = 0; y < h; y++)
+                    bitmap2.UnlockBits(d2);
+                    return d2.Scan0;
+                case PixelFormat.Format24bppRgb:
+                    Bitmap bitmap3 = new Bitmap(w, h, PixelFormat.Format32bppArgb);
+                    Rectangle r3 = new Rectangle(0, 0, w, h);
+                    BitmapData d3 = bitmap3.LockBits(r3, ImageLockMode.ReadWrite, bitmap3.PixelFormat);
+                    for (int index7 = 0; index7 < h; ++index7)
                     {
-                        //getting the pixels of current row
-                        byte* row = (byte*)bmd.Scan0 + (y * bmd.Stride);
-                        int rowRGB = y * w * 2;
-                        //iterating through all the pixels in x direction
-                        for (int x = 0; x < w; x++)
+                        byte* numPtr = (byte*)((IntPtr)(void*)d3.Scan0 + index7 * d3.Stride);
+                        int num6 = index7 * w * 3;
+                        for (int index8 = 0; index8 < w; ++index8)
                         {
-                            int indexRGB = x * 2;
-                            int indexRGBA = x * 4;
-                            ushort b = (ushort)((float)BitConverter.ToUInt16(bts, rowRGB + indexRGB) / 255);
-                            row[indexRGBA + 3] = 255;//byte A
-                            row[indexRGBA + 2] = (byte)(b);//byte R
-                            row[indexRGBA + 1] = (byte)(b);//byte G
-                            row[indexRGBA] = (byte)(b);//byte B
+                            int num7 = index8 * 3;
+                            int index9 = index8 * 4;
+                            numPtr[index9 + 3] = byte.MaxValue;
+                            numPtr[index9 + 2] = bts[num6 + num7 + 2];
+                            numPtr[index9 + 1] = bts[num6 + num7 + 1];
+                            numPtr[index9] = bts[num6 + num7];
                         }
                     }
-                }
-                bmp.UnlockBits(bmd);
-                return bmd.Scan0;
+                    bitmap3.UnlockBits(d3);
+                    return d3.Scan0;
+                case PixelFormat.Format32bppArgb:
+                case PixelFormat.Format32bppRgb:
+                    fixed (byte* numPtr = bts)
+                        return (IntPtr)(void*)numPtr;
+                case PixelFormat.Format48bppRgb:
+                    Bitmap bitmap4 = new Bitmap(w, h, PixelFormat.Format32bppArgb);
+                    Rectangle r4 = new Rectangle(0, 0, w, h);
+                    BitmapData d4 = bitmap4.LockBits(r4, ImageLockMode.ReadWrite, bitmap4.PixelFormat);
+                    for (int index10 = 0; index10 < h; ++index10)
+                    {
+                        byte* numPtr = (byte*)((IntPtr)(void*)d4.Scan0 + index10 * d4.Stride);
+                        int num8 = index10 * w * 6;
+                        for (int index11 = 0; index11 < w; ++index11)
+                        {
+                            int num9 = index11 * 6;
+                            int index12 = index11 * 4;
+                            int num10 = (int)((double)BitConverter.ToUInt16(bts, num8 + num9) / (double)byte.MaxValue);
+                            int num11 = (int)((double)BitConverter.ToUInt16(bts, num8 + num9 + 2) / (double)byte.MaxValue);
+                            int num12 = (int)((double)BitConverter.ToUInt16(bts, num8 + num9 + 4) / (double)byte.MaxValue);
+                            numPtr[index12 + 3] = byte.MaxValue;
+                            numPtr[index12 + 2] = (byte)num10;
+                            numPtr[index12 + 1] = (byte)num11;
+                            numPtr[index12] = (byte)num12;
+                        }
+                    }
+                    bitmap4.UnlockBits(d4);
+                    return d4.Scan0;
+                default:
+                    throw new NotSupportedException("Pixelformat " + px.ToString() + " is not supported.");
             }
-            throw new NotSupportedException("Pixelformat " + px + " is not supported.");
         }
+
         public static unsafe Bitmap GetRGB24Data(int w, int h, PixelFormat px, byte[] bts)
         {
-            if (px == PixelFormat.Format24bppRgb)
+            switch (px)
             {
-                return new Bitmap(w, h, px, bts, new ZCT(), "");
-            }
-            if (px == PixelFormat.Format32bppArgb)
-            {
-                //opening a 8 bit per pixel jpg image
-                Bitmap bmp = new Bitmap(w, h, PixelFormat.Format24bppRgb);
-                //creating the Bitmapdata and lock bits
-                Rectangle rec = new Rectangle(0, 0, w, h);
-                BitmapData bmd = bmp.LockBits(rec, ImageLockMode.ReadWrite, bmp.PixelFormat);
-                //iterating through all the pixels in y direction
-                for (int y = 0; y < h; y++)
-                {
-                    //getting the pixels of current row
-                    byte* row = (byte*)bmd.Scan0 + (y * bmd.Stride);
-                    int rowRGB = y * w * 4;
-                    //iterating through all the pixels in x direction
-                    for (int x = 0; x < w; x++)
+                case PixelFormat.Format8bppIndexed:
+                    Bitmap bitmap1 = new Bitmap(w, h, PixelFormat.Format24bppRgb);
+                    Rectangle r1 = new Rectangle(0, 0, w, h);
+                    BitmapData d1 = bitmap1.LockBits(r1, ImageLockMode.ReadWrite, bitmap1.PixelFormat);
+                    for (int index1 = 0; index1 < h; ++index1)
                     {
-                        int indexRGB = x * 4;
-                        int indexRGBA = x * 3;
-                        row[indexRGBA + 2] = bts[rowRGB + indexRGB + 0];//byte B
-                        row[indexRGBA + 1] = bts[rowRGB + indexRGB + 1];//byte G
-                        row[indexRGBA] = bts[rowRGB + indexRGB + 2];//byte R
-                    }
-                }
-                //unlocking bits and disposing image
-                bmp.UnlockBits(bmd);
-                return bmp;
-            }
-            else
-            if (px == PixelFormat.Format48bppRgb)
-            {
-                //opening a 8 bit per pixel jpg image
-                Bitmap bmp = new Bitmap(w, h, PixelFormat.Format24bppRgb);
-                //creating the Bitmapdata and lock bits
-                Rectangle rec = new Rectangle(0, 0, w, h);
-                BitmapData bmd = bmp.LockBits(rec, ImageLockMode.ReadWrite, bmp.PixelFormat);
-                unsafe
-                {
-                    //iterating through all the pixels in y direction
-                    for (int y = 0; y < h; y++)
-                    {
-                        //getting the pixels of current row
-                        byte* row = (byte*)bmd.Scan0 + (y * bmd.Stride);
-                        int rowRGB = y * w * 6;
-                        //iterating through all the pixels in x direction
-                        for (int x = 0; x < w; x++)
+                        byte* numPtr = (byte*)((IntPtr)(void*)d1.Scan0 + index1 * d1.Stride);
+                        int num1 = index1 * w;
+                        for (int index2 = 0; index2 < w; ++index2)
                         {
-                            int indexRGB = x * 6;
-                            int indexRGBA = x * 3;
-                            int b = (int)((float)BitConverter.ToUInt16(bts, rowRGB + indexRGB) / 255);
-                            int g = (int)((float)BitConverter.ToUInt16(bts, rowRGB + indexRGB + 2) / 255);
-                            int r = (int)((float)BitConverter.ToUInt16(bts, rowRGB + indexRGB + 4) / 255);
-                            //row[indexRGBA + 3] = 255;//byte A
-                            row[indexRGBA + 0] = (byte)(b);//byte R
-                            row[indexRGBA + 1] = (byte)(g);//byte G
-                            row[indexRGBA + 2] = (byte)(r);//byte B
+                            int num2 = index2;
+                            int index3 = index2 * 3;
+                            byte bt = bts[num1 + num2];
+                            numPtr[index3] = bt;
+                            numPtr[index3 + 1] = bt;
+                            numPtr[index3 + 2] = bt;
                         }
                     }
-                }
-                bmp.UnlockBits(bmd);
-                return bmp;
-            }
-            else
-            if (px == PixelFormat.Format8bppIndexed)
-            {
-                //opening a 8 bit per pixel jpg image
-                Bitmap bmp = new Bitmap(w, h, PixelFormat.Format24bppRgb);
-                //creating the Bitmapdata and lock bits
-                Rectangle rec = new Rectangle(0, 0, w, h);
-                BitmapData bmd = bmp.LockBits(rec, ImageLockMode.ReadWrite, bmp.PixelFormat);
-                unsafe
-                {
-                    //iterating through all the pixels in y direction
-                    for (int y = 0; y < h; y++)
+                    bitmap1.UnlockBits(d1);
+                    return bitmap1;
+                case PixelFormat.Format16bppGrayScale:
+                    Bitmap bitmap2 = new Bitmap(w, h, PixelFormat.Format32bppArgb);
+                    Rectangle r2 = new Rectangle(0, 0, w, h);
+                    BitmapData d2 = bitmap2.LockBits(r2, ImageLockMode.ReadWrite, bitmap2.PixelFormat);
+                    for (int index4 = 0; index4 < h; ++index4)
                     {
-                        //getting the pixels of current row
-                        byte* row = (byte*)bmd.Scan0 + (y * bmd.Stride);
-                        int rowRGB = y * w;
-                        //iterating through all the pixels in x direction
-                        for (int x = 0; x < w; x++)
+                        byte* numPtr = (byte*)((IntPtr)(void*)d2.Scan0 + index4 * d2.Stride);
+                        int num3 = index4 * w * 2;
+                        for (int index5 = 0; index5 < w; ++index5)
                         {
-                            int indexRGB = x;
-                            int indexRGBA = x * 3;
-                            byte b = bts[rowRGB + indexRGB];
-                            row[indexRGBA] = (byte)(b);//byte R
-                            row[indexRGBA + 1] = (byte)(b);//byte G
-                            row[indexRGBA + 2] = (byte)(b);//byte B
+                            int num4 = index5 * 2;
+                            int index6 = index5 * 3;
+                            ushort num5 = (ushort)((double)BitConverter.ToUInt16(bts, num3 + num4) / (double)byte.MaxValue);
+                            numPtr[index6 + 2] = (byte)num5;
+                            numPtr[index6 + 1] = (byte)num5;
+                            numPtr[index6] = (byte)num5;
                         }
                     }
-                }
-                bmp.UnlockBits(bmd);
-                return bmp;
-            }
-            else
-            if (px == PixelFormat.Format16bppGrayScale)
-            {
-                //opening a 8 bit per pixel jpg image
-                Bitmap bmp = new Bitmap(w, h, PixelFormat.Format32bppArgb);
-                //creating the Bitmapdata and lock bits
-                Rectangle rec = new Rectangle(0, 0, w, h);
-                BitmapData bmd = bmp.LockBits(rec, ImageLockMode.ReadWrite, bmp.PixelFormat);
-                unsafe
-                {
-                    //iterating through all the pixels in y direction
-                    for (int y = 0; y < h; y++)
+                    bitmap2.UnlockBits(d2);
+                    return bitmap2;
+                case PixelFormat.Format24bppRgb:
+                    return new Bitmap(w, h, px, bts, new ZCT(), "");
+                case PixelFormat.Format32bppArgb:
+                    Bitmap bitmap3 = new Bitmap(w, h, PixelFormat.Format24bppRgb);
+                    Rectangle r3 = new Rectangle(0, 0, w, h);
+                    BitmapData d3 = bitmap3.LockBits(r3, ImageLockMode.ReadWrite, bitmap3.PixelFormat);
+                    for (int index7 = 0; index7 < h; ++index7)
                     {
-                        //getting the pixels of current row
-                        byte* row = (byte*)bmd.Scan0 + (y * bmd.Stride);
-                        int rowRGB = y * w * 2;
-                        //iterating through all the pixels in x direction
-                        for (int x = 0; x < w; x++)
+                        byte* numPtr = (byte*)((IntPtr)(void*)d3.Scan0 + index7 * d3.Stride);
+                        int num6 = index7 * w * 4;
+                        for (int index8 = 0; index8 < w; ++index8)
                         {
-                            int indexRGB = x * 2;
-                            int indexRGBA = x * 3;
-                            ushort b = (ushort)((float)BitConverter.ToUInt16(bts, rowRGB + indexRGB) / 255);
-                            row[indexRGBA + 2] = (byte)(b);//byte R
-                            row[indexRGBA + 1] = (byte)(b);//byte G
-                            row[indexRGBA] = (byte)(b);//byte B
+                            int num7 = index8 * 4;
+                            int index9 = index8 * 3;
+                            numPtr[index9 + 2] = bts[num6 + num7];
+                            numPtr[index9 + 1] = bts[num6 + num7 + 1];
+                            numPtr[index9] = bts[num6 + num7 + 2];
                         }
                     }
-                }
-                bmp.UnlockBits(bmd);
-                return bmp;
+                    bitmap3.UnlockBits(d3);
+                    return bitmap3;
+                case PixelFormat.Format48bppRgb:
+                    Bitmap bitmap4 = new Bitmap(w, h, PixelFormat.Format24bppRgb);
+                    Rectangle r4 = new Rectangle(0, 0, w, h);
+                    BitmapData d4 = bitmap4.LockBits(r4, ImageLockMode.ReadWrite, bitmap4.PixelFormat);
+                    for (int index10 = 0; index10 < h; ++index10)
+                    {
+                        byte* numPtr = (byte*)((IntPtr)(void*)d4.Scan0 + index10 * d4.Stride);
+                        int num8 = index10 * w * 6;
+                        for (int index11 = 0; index11 < w; ++index11)
+                        {
+                            int num9 = index11 * 6;
+                            int index12 = index11 * 3;
+                            int num10 = (int)((double)BitConverter.ToUInt16(bts, num8 + num9) / (double)byte.MaxValue);
+                            int num11 = (int)((double)BitConverter.ToUInt16(bts, num8 + num9 + 2) / (double)byte.MaxValue);
+                            int num12 = (int)((double)BitConverter.ToUInt16(bts, num8 + num9 + 4) / (double)byte.MaxValue);
+                            numPtr[index12] = (byte)num10;
+                            numPtr[index12 + 1] = (byte)num11;
+                            numPtr[index12 + 2] = (byte)num12;
+                        }
+                    }
+                    bitmap4.UnlockBits(d4);
+                    return bitmap4;
+                default:
+                    throw new NotSupportedException("Pixelformat " + px.ToString() + " is not supported.");
             }
-            throw new NotSupportedException("Pixelformat " + px + " is not supported.");
         }
-        public static Bitmap GetFiltered(int w, int h, int stride, PixelFormat px, byte[] bts, IntRange rr, IntRange rg, IntRange rb)
-        {
-            if (px == PixelFormat.Format24bppRgb)
-            {
-                Bitmap bmp = new Bitmap(w, h, PixelFormat.Format24bppRgb);
-                //creating the Bitmapdata and lock bits
-                Rectangle rec = new Rectangle(0, 0, w, h);
-                BitmapData bmd = bmp.LockBits(rec, ImageLockMode.ReadWrite, bmp.PixelFormat);
-                unsafe
-                {
-                    //iterating through all the pixels in y direction
-                    for (int y = 0; y < h; y++)
-                    {
-                        //getting the pixels of current row
-                        byte* row = (byte*)bmd.Scan0 + (y * bmd.Stride);
-                        int rowRGB = y * stride;
-                        //iterating through all the pixels in x direction
-                        for (int x = 0; x < w; x++)
-                        {
-                            int indexRGB = x * 3;
-                            int indexRGBA = x * 3;
-                            row[indexRGBA + 2] = bts[rowRGB + indexRGB + 2];//byte R
-                            row[indexRGBA + 1] = bts[rowRGB + indexRGB + 1];//byte G
-                            row[indexRGBA] = bts[rowRGB + indexRGB];//byte B
-                            float ri = ((float)bts[rowRGB + indexRGB] - rr.Min);
-                            if (ri < 0)
-                                ri = 0;
-                            ri = ri / (float)rr.Max;
-                            float gi = ((float)bts[rowRGB + indexRGB + 1] - rg.Min);
-                            if (gi < 0)
-                                gi = 0;
-                            gi = gi / (float)rg.Max;
-                            float bi = ((float)bts[rowRGB + indexRGB + 2] - rb.Min);
-                            if (bi < 0)
-                                bi = 0;
-                            bi = bi / (float)rb.Max;
-                            int b = (int)(ri * 255f);
-                            int g = (int)(gi * 255f);
-                            int r = (int)(bi * 255f);
-                            row[indexRGBA + 2] = (byte)(b);//byte R
-                            row[indexRGBA + 1] = (byte)(g);//byte G
-                            row[indexRGBA] = (byte)(r);//byte B
-                        }
-                    }
-                }
-                //unlocking bits and disposing image
-                bmp.UnlockBits(bmd);
-                return bmp;
-            }
-            else
-            if (px == PixelFormat.Format32bppArgb)
-            {
-                Bitmap bmp = new Bitmap(w, h, PixelFormat.Format32bppRgb);
-                //creating the Bitmapdata and lock bits
-                Rectangle rec = new Rectangle(0, 0, w, h);
-                BitmapData bmd = bmp.LockBits(rec, ImageLockMode.ReadWrite, bmp.PixelFormat);
-                unsafe
-                {
-                    //iterating through all the pixels in y direction
-                    for (int y = 0; y < h; y++)
-                    {
-                        //getting the pixels of current row
-                        byte* row = (byte*)bmd.Scan0 + (y * bmd.Stride);
-                        int rowRGB = y * stride;
-                        //iterating through all the pixels in x direction
-                        for (int x = 0; x < w; x++)
-                        {
-                            int indexRGB = x * 4;
-                            int indexRGBA = x * 4;
-                            row[indexRGBA + 2] = bts[rowRGB + indexRGB + 2];//byte R
-                            row[indexRGBA + 1] = bts[rowRGB + indexRGB + 1];//byte G
-                            row[indexRGBA] = bts[rowRGB + indexRGB];//byte B
-                            float ri = ((float)bts[rowRGB + indexRGB] - rr.Min);
-                            if (ri < 0)
-                                ri = 0;
-                            ri = ri / (float)rr.Max;
-                            float gi = ((float)bts[rowRGB + indexRGB + 1] - rg.Min);
-                            if (gi < 0)
-                                gi = 0;
-                            gi = gi / (float)rg.Max;
-                            float bi = ((float)bts[rowRGB + indexRGB + 2] - rb.Min);
-                            if (bi < 0)
-                                bi = 0;
-                            bi = bi / (float)rb.Max;
-                            int b = (int)(ri * 255f);
-                            int g = (int)(gi * 255f);
-                            int r = (int)(bi * 255f);
-                            row[indexRGBA + 2] = (byte)(b);//byte R
-                            row[indexRGBA + 1] = (byte)(g);//byte G
-                            row[indexRGBA] = (byte)(r);//byte B
-                        }
-                    }
-                }
-                //unlocking bits and disposing image
-                bmp.UnlockBits(bmd);
-                return bmp;
-            }
-            else
-            if (px == PixelFormat.Format48bppRgb)
-            {
-                //opening a 8 bit per pixel jpg image
-                Bitmap bmp = new Bitmap(w, h, PixelFormat.Format32bppArgb);
-                //creating the Bitmapdata and lock bits
-                Rectangle rec = new Rectangle(0, 0, w, h);
-                BitmapData bmd = bmp.LockBits(rec, ImageLockMode.ReadWrite, bmp.PixelFormat);
-                unsafe
-                {
-                    //iterating through all the pixels in y direction
-                    for (int y = 0; y < h; y++)
-                    {
-                        //getting the pixels of current row
-                        byte* row = (byte*)bmd.Scan0 + (y * bmd.Stride);
-                        int rowRGB = y * stride;
-                        //iterating through all the pixels in x direction
-                        for (int x = 0; x < w; x++)
-                        {
-                            int indexRGB = x * 6;
-                            int indexRGBA = x * 4;
-                            float ri = ((float)BitConverter.ToUInt16(bts, rowRGB + indexRGB) - rr.Min);
-                            if (ri < 0)
-                                ri = 0;
-                            ri = ri / (float)rr.Max;
-                            float gi = ((float)BitConverter.ToUInt16(bts, rowRGB + indexRGB + 2) - rg.Min);
-                            if (gi < 0)
-                                gi = 0;
-                            gi = gi / (float)rg.Max;
-                            float bi = ((float)BitConverter.ToUInt16(bts, rowRGB + indexRGB + 4) - rb.Min);
-                            if (bi < 0)
-                                bi = 0;
-                            bi = bi / (float)rb.Max;
-                            int b = (int)(ri * 255f);
-                            int g = (int)(gi * 255f);
-                            int r = (int)(bi * 255f);
-                            row[indexRGBA + 3] = 255;//byte A
-                            row[indexRGBA + 2] = (byte)(b);//byte R
-                            row[indexRGBA + 1] = (byte)(g);//byte G
-                            row[indexRGBA] = (byte)(r);//byte B
-                        }
-                    }
-                }
 
-                bmp.UnlockBits(bmd);
-                return bmp;
-            }
-            else
-            if (px == PixelFormat.Format16bppGrayScale)
-            {
-                //opening a 8 bit per pixel jpg image
-                Bitmap bmp = new Bitmap(w, h, PixelFormat.Format32bppArgb);
-                //creating the Bitmapdata and lock bits
-                Rectangle rec = new Rectangle(0, 0, w, h);
-                BitmapData bmd = bmp.LockBits(rec, ImageLockMode.ReadWrite, bmp.PixelFormat);
-                unsafe
-                {
-                    //iterating through all the pixels in y direction
-                    for (int y = 0; y < h; y++)
-                    {
-                        //getting the pixels of current row
-                        byte* row = (byte*)bmd.Scan0 + (y * bmd.Stride);
-                        int rowRGB = y * stride;
-                        //iterating through all the pixels in x direction
-                        for (int x = 0; x < w; x++)
-                        {
-                            int indexRGB = x * 2;
-                            int indexRGBA = x * 4;
-                            float ri = (float)BitConverter.ToUInt16(bts, rowRGB + indexRGB) - rr.Min;
-                            if (ri < 0)
-                                ri = 0;
-                            ri = ri / rr.Max;
-                            int b = (int)(ri * 255);
-                            row[indexRGBA + 3] = 255;//byte A
-                            row[indexRGBA + 2] = (byte)(b);//byte R
-                            row[indexRGBA + 1] = (byte)(b);//byte G
-                            row[indexRGBA] = (byte)(b);//byte B
-                        }
-                    }
-                }
-                bmp.UnlockBits(bmd);
-                return bmp;
-            }
-            else
-            if (px == PixelFormat.Format8bppIndexed)
-            {
-                //opening a 8 bit per pixel jpg image
-                Bitmap bmp = new Bitmap(w, h, PixelFormat.Format32bppArgb);
-                //creating the Bitmapdata and lock bits
-                Rectangle rec = new Rectangle(0, 0, w, h);
-                BitmapData bmd = bmp.LockBits(rec, ImageLockMode.ReadWrite, bmp.PixelFormat);
-                unsafe
-                {
-                    //iterating through all the pixels in y direction
-                    for (int y = 0; y < h; y++)
-                    {
-                        //getting the pixels of current row
-                        byte* row = (byte*)bmd.Scan0 + (y * bmd.Stride);
-                        int rowRGB = y * stride;
-                        //iterating through all the pixels in x direction
-                        for (int x = 0; x < w; x++)
-                        {
-                            int indexRGB = x;
-                            int indexRGBA = x * 4;
-                            float ri = (float)bts[rowRGB + indexRGB] - rr.Min;
-                            if (ri < 0)
-                                ri = 0;
-                            ri = ri / rr.Max;
-                            int b = (int)(ri * 255);
-                            row[indexRGBA + 3] = 255;//byte A
-                            row[indexRGBA + 2] = (byte)(b);//byte R
-                            row[indexRGBA + 1] = (byte)(b);//byte G
-                            row[indexRGBA] = (byte)(b);//byte B
-                        }
-                    }
-                }
-
-                bmp.UnlockBits(bmd);
-                return bmp;
-            }
-            throw new InvalidDataException("Bio supports only 8, 16 24, 32, 48 bit images.");
-        }
-        public Bitmap GetFiltered(IntRange rr, IntRange rg, IntRange rb)
+        public static unsafe Bitmap GetFiltered(
+            int w,
+            int h,
+            int stride,
+            PixelFormat px,
+            byte[] bts,
+            IntRange rr,
+            IntRange rg,
+            IntRange rb)
         {
-            return Bitmap.GetFiltered(SizeX, SizeY, Stride, PixelFormat, Bytes, rr, rg, rb);
+            switch (px)
+            {
+                case PixelFormat.Format8bppIndexed:
+                    Bitmap bitmap1 = new Bitmap(w, h, PixelFormat.Format32bppArgb);
+                    Rectangle r1 = new Rectangle(0, 0, w, h);
+                    BitmapData d1 = bitmap1.LockBits(r1, ImageLockMode.ReadWrite, bitmap1.PixelFormat);
+                    for (int index1 = 0; index1 < h; ++index1)
+                    {
+                        byte* numPtr = (byte*)((IntPtr)(void*)d1.Scan0 + index1 * d1.Stride);
+                        int num1 = index1 * stride;
+                        for (int index2 = 0; index2 < w; ++index2)
+                        {
+                            int num2 = index2;
+                            int index3 = index2 * 4;
+                            float num3 = (float)bts[num1 + num2] - (float)rr.Min;
+                            if ((double)num3 < 0.0)
+                                num3 = 0.0f;
+                            int num4 = (int)((double)(num3 / (float)rr.Max) * (double)byte.MaxValue);
+                            numPtr[index3 + 3] = byte.MaxValue;
+                            numPtr[index3 + 2] = (byte)num4;
+                            numPtr[index3 + 1] = (byte)num4;
+                            numPtr[index3] = (byte)num4;
+                        }
+                    }
+                    bitmap1.UnlockBits(d1);
+                    return bitmap1;
+                case PixelFormat.Format16bppGrayScale:
+                    Bitmap bitmap2 = new Bitmap(w, h, PixelFormat.Format32bppArgb);
+                    Rectangle r2 = new Rectangle(0, 0, w, h);
+                    BitmapData d2 = bitmap2.LockBits(r2, ImageLockMode.ReadWrite, bitmap2.PixelFormat);
+                    for (int index4 = 0; index4 < h; ++index4)
+                    {
+                        byte* numPtr = (byte*)((IntPtr)(void*)d2.Scan0 + index4 * d2.Stride);
+                        int num5 = index4 * stride;
+                        for (int index5 = 0; index5 < w; ++index5)
+                        {
+                            int num6 = index5 * 2;
+                            int index6 = index5 * 4;
+                            float num7 = (float)BitConverter.ToUInt16(bts, num5 + num6) - (float)rr.Min;
+                            if ((double)num7 < 0.0)
+                                num7 = 0.0f;
+                            int num8 = (int)((double)(num7 / (float)rr.Max) * (double)byte.MaxValue);
+                            numPtr[index6 + 3] = byte.MaxValue;
+                            numPtr[index6 + 2] = (byte)num8;
+                            numPtr[index6 + 1] = (byte)num8;
+                            numPtr[index6] = (byte)num8;
+                        }
+                    }
+                    bitmap2.UnlockBits(d2);
+                    return bitmap2;
+                case PixelFormat.Format24bppRgb:
+                    Bitmap bitmap3 = new Bitmap(w, h, PixelFormat.Format24bppRgb);
+                    Rectangle r3 = new Rectangle(0, 0, w, h);
+                    BitmapData d3 = bitmap3.LockBits(r3, ImageLockMode.ReadWrite, bitmap3.PixelFormat);
+                    for (int index7 = 0; index7 < h; ++index7)
+                    {
+                        byte* numPtr = (byte*)((IntPtr)(void*)d3.Scan0 + index7 * d3.Stride);
+                        int num9 = index7 * stride;
+                        for (int index8 = 0; index8 < w; ++index8)
+                        {
+                            int num10 = index8 * 3;
+                            int index9 = index8 * 3;
+                            numPtr[index9 + 2] = bts[num9 + num10 + 2];
+                            numPtr[index9 + 1] = bts[num9 + num10 + 1];
+                            numPtr[index9] = bts[num9 + num10];
+                            float num11 = (float)bts[num9 + num10] - (float)rr.Min;
+                            if ((double)num11 < 0.0)
+                                num11 = 0.0f;
+                            float num12 = num11 / (float)rr.Max;
+                            float num13 = (float)bts[num9 + num10 + 1] - (float)rg.Min;
+                            if ((double)num13 < 0.0)
+                                num13 = 0.0f;
+                            float num14 = num13 / (float)rg.Max;
+                            float num15 = (float)bts[num9 + num10 + 2] - (float)rb.Min;
+                            if ((double)num15 < 0.0)
+                                num15 = 0.0f;
+                            float num16 = num15 / (float)rb.Max;
+                            int num17 = (int)((double)num12 * (double)byte.MaxValue);
+                            int num18 = (int)((double)num14 * (double)byte.MaxValue);
+                            int num19 = (int)((double)num16 * (double)byte.MaxValue);
+                            numPtr[index9 + 2] = (byte)num17;
+                            numPtr[index9 + 1] = (byte)num18;
+                            numPtr[index9] = (byte)num19;
+                        }
+                    }
+                    bitmap3.UnlockBits(d3);
+                    return bitmap3;
+                case PixelFormat.Format32bppArgb:
+                    Bitmap bitmap4 = new Bitmap(w, h, PixelFormat.Format32bppRgb);
+                    Rectangle r4 = new Rectangle(0, 0, w, h);
+                    BitmapData d4 = bitmap4.LockBits(r4, ImageLockMode.ReadWrite, bitmap4.PixelFormat);
+                    for (int index10 = 0; index10 < h; ++index10)
+                    {
+                        byte* numPtr = (byte*)((IntPtr)(void*)d4.Scan0 + index10 * d4.Stride);
+                        int num20 = index10 * stride;
+                        for (int index11 = 0; index11 < w; ++index11)
+                        {
+                            int num21 = index11 * 4;
+                            int index12 = index11 * 4;
+                            numPtr[index12 + 2] = bts[num20 + num21 + 2];
+                            numPtr[index12 + 1] = bts[num20 + num21 + 1];
+                            numPtr[index12] = bts[num20 + num21];
+                            float num22 = (float)bts[num20 + num21] - (float)rr.Min;
+                            if ((double)num22 < 0.0)
+                                num22 = 0.0f;
+                            float num23 = num22 / (float)rr.Max;
+                            float num24 = (float)bts[num20 + num21 + 1] - (float)rg.Min;
+                            if ((double)num24 < 0.0)
+                                num24 = 0.0f;
+                            float num25 = num24 / (float)rg.Max;
+                            float num26 = (float)bts[num20 + num21 + 2] - (float)rb.Min;
+                            if ((double)num26 < 0.0)
+                                num26 = 0.0f;
+                            float num27 = num26 / (float)rb.Max;
+                            int num28 = (int)((double)num23 * (double)byte.MaxValue);
+                            int num29 = (int)((double)num25 * (double)byte.MaxValue);
+                            int num30 = (int)((double)num27 * (double)byte.MaxValue);
+                            numPtr[index12 + 2] = (byte)num28;
+                            numPtr[index12 + 1] = (byte)num29;
+                            numPtr[index12] = (byte)num30;
+                        }
+                    }
+                    bitmap4.UnlockBits(d4);
+                    return bitmap4;
+                case PixelFormat.Format48bppRgb:
+                    Bitmap bitmap5 = new Bitmap(w, h, PixelFormat.Format32bppArgb);
+                    Rectangle r5 = new Rectangle(0, 0, w, h);
+                    BitmapData d5 = bitmap5.LockBits(r5, ImageLockMode.ReadWrite, bitmap5.PixelFormat);
+                    for (int index13 = 0; index13 < h; ++index13)
+                    {
+                        byte* numPtr = (byte*)((IntPtr)(void*)d5.Scan0 + index13 * d5.Stride);
+                        int num31 = index13 * stride;
+                        for (int index14 = 0; index14 < w; ++index14)
+                        {
+                            int num32 = index14 * 6;
+                            int index15 = index14 * 4;
+                            float num33 = (float)BitConverter.ToUInt16(bts, num31 + num32) - (float)rr.Min;
+                            if ((double)num33 < 0.0)
+                                num33 = 0.0f;
+                            float num34 = num33 / (float)rr.Max;
+                            float num35 = (float)BitConverter.ToUInt16(bts, num31 + num32 + 2) - (float)rg.Min;
+                            if ((double)num35 < 0.0)
+                                num35 = 0.0f;
+                            float num36 = num35 / (float)rg.Max;
+                            float num37 = (float)BitConverter.ToUInt16(bts, num31 + num32 + 4) - (float)rb.Min;
+                            if ((double)num37 < 0.0)
+                                num37 = 0.0f;
+                            float num38 = num37 / (float)rb.Max;
+                            int num39 = (int)((double)num34 * (double)byte.MaxValue);
+                            int num40 = (int)((double)num36 * (double)byte.MaxValue);
+                            int num41 = (int)((double)num38 * (double)byte.MaxValue);
+                            numPtr[index15 + 3] = byte.MaxValue;
+                            numPtr[index15 + 2] = (byte)num39;
+                            numPtr[index15 + 1] = (byte)num40;
+                            numPtr[index15] = (byte)num41;
+                        }
+                    }
+                    bitmap5.UnlockBits(d5);
+                    return bitmap5;
+                default:
+                    throw new InvalidDataException("Bio supports only 8, 16 24, 32, 48 bit images.");
+            }
         }
+
+        public Bitmap GetFiltered(IntRange rr, IntRange rg, IntRange rb) => Bitmap.GetFiltered(this.SizeX, this.SizeY, this.Stride, this.PixelFormat, this.Bytes, rr, rg, rb);
+
         public void Crop(Rectangle r)
         {
-            //This crop function supports 16 bit images unlike Bitmap class.
-            if (BitsPerPixel > 8)
+            if (this.BitsPerPixel > 8)
             {
-                if (RGBChannelsCount == 1)
+                if (this.RGBChannelsCount == 1)
                 {
-                    byte[] bts = null;
-                    int bytesPer = 2;
-                    int stridenew = r.Width * bytesPer;
-                    int strideold = Stride;
-                    bts = new byte[(stridenew * r.Height)];
-                    for (int y = 0; y < r.Height; y++)
+                    int num1 = 2;
+                    int num2 = r.Width * num1;
+                    int stride = this.Stride;
+                    byte[] numArray = new byte[num2 * r.Height];
+                    for (int index1 = 0; index1 < r.Height; ++index1)
                     {
-                        for (int x = 0; x < stridenew; x += bytesPer)
+                        for (int index2 = 0; index2 < num2; index2 += num1)
                         {
-                            int indexnew = (y * stridenew + x);
-                            int indexold = ((y + r.Y) * strideold + (x + (r.X * bytesPer)));// + r.X;
-                            bts[indexnew] = bytes[indexold];
-                            bts[indexnew + 1] = bytes[indexold + 1];
+                            int index3 = index1 * num2 + index2;
+                            int index4 = (index1 + r.Y) * stride + (index2 + r.X * num1);
+                            numArray[index3] = this.bytes[index4];
+                            numArray[index3 + 1] = this.bytes[index4 + 1];
                         }
                     }
-                    bytes = bts;
+                    this.bytes = numArray;
                 }
                 else
                 {
-                    byte[] bts = null;
-                    int bytesPer = 6;
-                    int stridenew = r.Width * bytesPer;
-                    int strideold = Stride;
-                    bts = new byte[(stridenew * r.Height)];
-                    for (int y = 0; y < r.Height; y++)
+                    int num3 = 6;
+                    int num4 = r.Width * num3;
+                    int stride = this.Stride;
+                    byte[] numArray = new byte[num4 * r.Height];
+                    for (int index5 = 0; index5 < r.Height; ++index5)
                     {
-                        for (int x = 0; x < stridenew; x += bytesPer)
+                        for (int index6 = 0; index6 < num4; index6 += num3)
                         {
-                            int indexnew = (y * stridenew + x);
-                            int indexold = ((y + r.Y) * strideold + (x + (r.X * bytesPer)));// + r.X;
-                            bts[indexnew] = bytes[indexold];
-                            bts[indexnew + 1] = bytes[indexold + 1];
-                            bts[indexnew + 2] = bytes[indexold + 2];
-                            bts[indexnew + 3] = bytes[indexold + 3];
-                            bts[indexnew + 4] = bytes[indexold + 4];
-                            bts[indexnew + 5] = bytes[indexold + 5];
+                            int index7 = index5 * num4 + index6;
+                            int index8 = (index5 + r.Y) * stride + (index6 + r.X * num3);
+                            numArray[index7] = this.bytes[index8];
+                            numArray[index7 + 1] = this.bytes[index8 + 1];
+                            numArray[index7 + 2] = this.bytes[index8 + 2];
+                            numArray[index7 + 3] = this.bytes[index8 + 3];
+                            numArray[index7 + 4] = this.bytes[index8 + 4];
+                            numArray[index7 + 5] = this.bytes[index8 + 5];
                         }
                     }
-                    bytes = bts;
+                    this.bytes = numArray;
                 }
             }
             else
-            {
-                AForge.Imaging.Filters.Crop cr = new Crop(r);
-                Image = cr.Apply(Image);
-            }
-            SizeX = r.Width;
-            SizeY = r.Height;
+                this.Image = new AForge.Imaging.Filters.Crop(r).Apply(this.Image);
+            this.SizeX = r.Width;
+            this.SizeY = r.Height;
         }
+
         public UnmanagedImage GetCropBitmap(Rectangle r)
         {
-            //This crop function supports 16 bit images unlike Bitmap class.
-            if (BitsPerPixel > 8)
+            if (this.BitsPerPixel <= 8)
+                return new AForge.Imaging.Filters.Crop(r).Apply(this.Image);
+            if (this.RGBChannelsCount == 1)
             {
-                byte[] bts = null;
-                if (RGBChannelsCount == 1)
+                int num = 2;
+                int stride1 = r.Width * num;
+                int stride2 = this.Stride;
+                byte[] arr = new byte[stride1 * r.Height];
+                for (int index1 = 0; index1 < r.Height; ++index1)
                 {
-                    int bytesPer = 2;
-                    int stridenew = r.Width * bytesPer;
-                    int strideold = Stride;
-                    bts = new byte[(stridenew * r.Height)];
-                    for (int y = 0; y < r.Height; y++)
+                    for (int index2 = 0; index2 < stride1; index2 += num)
                     {
-                        for (int x = 0; x < stridenew; x += bytesPer)
-                        {
-                            int indexnew = (y * stridenew + x) * RGBChannelsCount;
-                            int indexold = (((y + r.Y) * strideold + (x + (r.X * bytesPer))) * RGBChannelsCount);// + r.X;
-                            bts[indexnew] = bytes[indexold];
-                            bts[indexnew + 1] = bytes[indexold + 1];
-                        }
+                        int index3 = (index1 * stride1 + index2) * this.RGBChannelsCount;
+                        int index4 = ((index1 + r.Y) * stride2 + (index2 + r.X * num)) * this.RGBChannelsCount;
+                        arr[index3] = this.bytes[index4];
+                        arr[index3 + 1] = this.bytes[index4 + 1];
                     }
-                    return new UnmanagedImage(Marshal.UnsafeAddrOfPinnedArrayElement(bts, 0),r.Width, r.Height, stridenew, PixelFormat.Format16bppGrayScale);
                 }
-                else
+                return new UnmanagedImage(Marshal.UnsafeAddrOfPinnedArrayElement<byte>(arr, 0), r.Width, r.Height, stride1, PixelFormat.Format16bppGrayScale);
+            }
+            int num1 = 6;
+            int stride3 = r.Width * num1;
+            int stride4 = this.Stride;
+            byte[] arr1 = new byte[stride3 * r.Height];
+            for (int index5 = 0; index5 < r.Height; ++index5)
+            {
+                for (int index6 = 0; index6 < stride3; index6 += num1)
                 {
-                    int bytesPer = 6;
-                    int stridenew = r.Width * bytesPer;
-                    int strideold = Stride;
-                    bts = new byte[(stridenew * r.Height)];
-                    for (int y = 0; y < r.Height; y++)
-                    {
-                        for (int x = 0; x < stridenew; x += bytesPer)
-                        {
-                            int indexnew = (y * stridenew + x);
-                            int indexold = ((y + r.Y) * strideold + (x + (r.X * bytesPer)));// + r.X;
-                            bts[indexnew] = bytes[indexold];
-                            bts[indexnew + 1] = bytes[indexold + 1];
-                            bts[indexnew + 2] = bytes[indexold + 2];
-                            bts[indexnew + 3] = bytes[indexold + 3];
-                            bts[indexnew + 4] = bytes[indexold + 4];
-                            bts[indexnew + 5] = bytes[indexold + 5];
-                        }
-                    }
-                    //bytes = bts;
-                    return new UnmanagedImage( Marshal.UnsafeAddrOfPinnedArrayElement(bts, 0),r.Width, r.Height, stridenew, PixelFormat.Format48bppRgb);
+                    int index7 = index5 * stride3 + index6;
+                    int index8 = (index5 + r.Y) * stride4 + (index6 + r.X * num1);
+                    arr1[index7] = this.bytes[index8];
+                    arr1[index7 + 1] = this.bytes[index8 + 1];
+                    arr1[index7 + 2] = this.bytes[index8 + 2];
+                    arr1[index7 + 3] = this.bytes[index8 + 3];
+                    arr1[index7 + 4] = this.bytes[index8 + 4];
+                    arr1[index7 + 5] = this.bytes[index8 + 5];
                 }
             }
-            else
-            {
-                AForge.Imaging.Filters.Crop cr = new Crop(r);
-                return cr.Apply(Image);
-            }
-
+            return new UnmanagedImage(Marshal.UnsafeAddrOfPinnedArrayElement<byte>(arr1, 0), r.Width, r.Height, stride3, PixelFormat.Format48bppRgb);
         }
+
         public Bitmap GetCropBuffer(Rectangle r)
         {
-            //This crop function supports 16 bit images unlike Bitmap class.
-            if (BitsPerPixel > 8)
+            if (this.BitsPerPixel <= 8)
+                return new Bitmap(new AForge.Imaging.Filters.Crop(r).Apply(this.Image));
+            if (this.RGBChannelsCount == 1)
             {
-                byte[] bts = null;
-                if (RGBChannelsCount == 1)
+                int num1 = 2;
+                int num2 = r.Width * num1;
+                int stride = this.Stride;
+                byte[] bts = new byte[num2 * r.Height];
+                for (int index1 = 0; index1 < r.Height; ++index1)
                 {
-                    int bytesPer = 2;
-                    int stridenew = r.Width * bytesPer;
-                    int strideold = Stride;
-                    bts = new byte[(stridenew * r.Height)];
-                    for (int y = 0; y < r.Height; y++)
+                    for (int index2 = 0; index2 < num2; index2 += num1)
                     {
-                        for (int x = 0; x < stridenew; x += bytesPer)
-                        {
-                            int indexnew = (y * stridenew + x) * RGBChannelsCount;
-                            int indexold = (((y + r.Y) * strideold + (x + (r.X * bytesPer))) * RGBChannelsCount);// + r.X;
-                            bts[indexnew] = bytes[indexold];
-                            bts[indexnew + 1] = bytes[indexold + 1];
-                        }
+                        int index3 = (index1 * num2 + index2) * this.RGBChannelsCount;
+                        int index4 = ((index1 + r.Y) * stride + (index2 + r.X * num1)) * this.RGBChannelsCount;
+                        bts[index3] = this.bytes[index4];
+                        bts[index3 + 1] = this.bytes[index4 + 1];
                     }
-                    Bitmap bf = new Bitmap(r.Width, r.Height, PixelFormat.Format16bppGrayScale, bts, Coordinate, ID);
-                    return bf;
                 }
-                else
+                return new Bitmap(r.Width, r.Height, PixelFormat.Format16bppGrayScale, bts, this.Coordinate, this.ID);
+            }
+            int num3 = 6;
+            int num4 = r.Width * num3;
+            int stride1 = this.Stride;
+            byte[] bts1 = new byte[num4 * r.Height];
+            for (int index5 = 0; index5 < r.Height; ++index5)
+            {
+                for (int index6 = 0; index6 < num4; index6 += num3)
                 {
-                    int bytesPer = 6;
-                    int stridenew = r.Width * bytesPer;
-                    int strideold = Stride;
-                    bts = new byte[(stridenew * r.Height)];
-                    for (int y = 0; y < r.Height; y++)
-                    {
-                        for (int x = 0; x < stridenew; x += bytesPer)
-                        {
-                            int indexnew = (y * stridenew + x);
-                            int indexold = ((y + r.Y) * strideold + (x + (r.X * bytesPer)));// + r.X;
-                            bts[indexnew] = bytes[indexold];
-                            bts[indexnew + 1] = bytes[indexold + 1];
-                            bts[indexnew + 2] = bytes[indexold + 2];
-                            bts[indexnew + 3] = bytes[indexold + 3];
-                            bts[indexnew + 4] = bytes[indexold + 4];
-                            bts[indexnew + 5] = bytes[indexold + 5];
-                        }
-                    }
-                    Bitmap bf = new Bitmap(r.Width, r.Height, PixelFormat.Format48bppRgb, bts, Coordinate, ID);
-                    return bf;
+                    int index7 = index5 * num4 + index6;
+                    int index8 = (index5 + r.Y) * stride1 + (index6 + r.X * num3);
+                    bts1[index7] = this.bytes[index8];
+                    bts1[index7 + 1] = this.bytes[index8 + 1];
+                    bts1[index7 + 2] = this.bytes[index8 + 2];
+                    bts1[index7 + 3] = this.bytes[index8 + 3];
+                    bts1[index7 + 4] = this.bytes[index8 + 4];
+                    bts1[index7 + 5] = this.bytes[index8 + 5];
                 }
             }
-            else
-            {
-                AForge.Imaging.Filters.Crop cr = new Crop(r);
-                return new Bitmap(cr.Apply(Image));
-            }
+            return new Bitmap(r.Width, r.Height, PixelFormat.Format48bppRgb, bts1, this.Coordinate, this.ID);
         }
-        void Initialize(string file, int w, int h, PixelFormat px, byte[] byts, ZCT coord, int index , Plane plane, bool littleEndian = true, bool interleaved = true)
+
+        private void Initialize(
+            string file,
+            int w,
+            int h,
+            PixelFormat px,
+            byte[] byts,
+            ZCT coord,
+            int index,
+            Plane plane,
+            bool littleEndian = true,
+            bool interleaved = true)
         {
-            ID = CreateID(file, index);
-            SizeX = w;
-            SizeY = h;
-            pixelFormat = px;
-            Coordinate = coord;
-            Bytes = byts;
+            this.ID = Bitmap.CreateID(file, index);
+            this.SizeX = w;
+            this.SizeY = h;
+            this.pixelFormat = px;
+            this.Coordinate = coord;
+            this.Bytes = byts;
+            this.Plane = plane;
             if (!interleaved)
             {
-                byte[] bts = new byte[Length];
-                int strplane;
-                if (BitsPerPixel > 8)
+                byte[] numArray = new byte[this.Length];
+                int num1 = this.BitsPerPixel <= 8 ? w : w * 2;
+                if (this.RGBChannelsCount == 1)
                 {
-                    strplane = w * 2;
+                    for (int index1 = 0; index1 < h; ++index1)
+                    {
+                        int num2 = 0;
+                        int num3 = this.Stride * index1;
+                        int num4 = num1 * index1;
+                        for (int index2 = 0; index2 < num1; ++index2)
+                        {
+                            numArray[num3 + num2] = this.bytes[num4 + index2];
+                            ++num2;
+                        }
+                    }
+                }
+                else if (this.BitsPerPixel > 8)
+                {
+                    int num5 = num1 * h;
+                    int num6 = num1 * h * 2;
+                    for (int index3 = 0; index3 < h; ++index3)
+                    {
+                        int num7 = 0;
+                        int num8 = 0;
+                        int num9 = this.Stride * index3;
+                        int num10 = num1 * index3;
+                        for (int index4 = 0; index4 < num1; index4 += 2)
+                        {
+                            numArray[num9 + num8 + 4] = this.bytes[num10 + index4];
+                            numArray[num9 + num8 + 5] = this.bytes[num10 + index4 + 1];
+                            numArray[num9 + num8 + 2] = this.bytes[num5 + num10 + index4];
+                            numArray[num9 + num8 + 3] = this.bytes[num5 + num10 + index4 + 1];
+                            numArray[num9 + num8] = this.bytes[num6 + num10 + index4];
+                            numArray[num9 + num8 + 1] = this.bytes[num6 + num10 + index4 + 1];
+                            if (num7 == 1)
+                            {
+                                num7 = 0;
+                                num8 += 6;
+                            }
+                            ++num7;
+                        }
+                    }
                 }
                 else
-                    strplane = w;
-                if (RGBChannelsCount == 1)
                 {
-                    for (int y = 0; y < h; y++)
+                    int num11 = num1 * h;
+                    int num12 = num11 * 2;
+                    for (int index5 = 0; index5 < h; ++index5)
                     {
-                        int x = 0;
-                        int str1 = Stride * y;
-                        int str2 = strplane * y;
-                        for (int st = 0; st < strplane; st++)
+                        int num13 = 0;
+                        int num14 = this.Stride * index5;
+                        int num15 = num1 * index5;
+                        for (int index6 = 0; index6 < num1; ++index6)
                         {
-                            bts[str1 + x] = bytes[str2 + st];
-                            x++;
+                            numArray[num14 + num13] = this.bytes[num15 + index6];
+                            numArray[num14 + num13 + 1] = this.bytes[num11 + num15 + index6];
+                            numArray[num14 + num13 + 2] = this.bytes[num12 + num15 + index6];
+                            num13 += 3;
                         }
                     }
                 }
-                else
-                {
-                    if (BitsPerPixel > 8)
-                    {
-                        int ind = strplane * h;
-                        int ind2 = strplane * h * 2;
-                        for (int y = 0; y < h; y++)
-                        {
-                            int i = 0;
-                            int x = 0;
-                            int str1 = Stride * y;
-                            int str2 = strplane * y;
-                            for (int st = 0; st < strplane; st+=2)
-                            {
-                                bts[str1 + x + 0] = bytes[str2 + st];
-                                bts[str1 + x + 1] = bytes[str2 + st + 1];
-                                bts[str1 + x + 2] = bytes[ind + str2 + st];
-                                bts[str1 + x + 3] = bytes[ind + str2 + st + 1];
-                                bts[str1 + x + 4] = bytes[ind2 + str2 + st];
-                                bts[str1 + x + 5] = bytes[ind2 + str2 + st + 1];
-                                if(i==1)
-                                {
-                                    i = 0; x+=6;
-                                }
-                                i++;
-                            }
-                        }
-                    }
-                    else
-                    {
-                        int ind = strplane * h;
-                        int indb = ind * 2;
-                        for (int y = 0; y < h; y++)
-                        {
-                            int x = 0;
-                            int str1 = Stride * y;
-                            int str2 = strplane * y;
-                            for (int st = 0; st < strplane; st++)
-                            {
-                                bts[str1 + x + 2] = bytes[str2 + st];
-                                bts[str1 + x + 1] = bytes[ind + str2 + st];
-                                bts[str1 + x] = bytes[indb + str2 + st];
-                                x += 3;
-                            }
-                        }
-                    }
-                }
-                bytes = bts;
+                this.bytes = numArray;
             }
             if (!littleEndian)
             {
-                Array.Reverse(Bytes);
-                RotateFlip(RotateFlipType.Rotate180FlipNone);
+                Array.Reverse<byte>(this.Bytes);
+                this.RotateFlip(RotateFlipType.Rotate180FlipNone);
+                SwitchRedBlue();
             }
-            stats = Statistics.FromBytes(this);
+            else
+                SwitchRedBlue();
+            this.stats = Statistics.FromBytes(this);
         }
-        public Bitmap(string file, int w, int h, PixelFormat px, byte[] bts, ZCT coord, int index)
-        {
-            Initialize(file, w, h, px, bts, coord, index, null);
-        }
+
+        public Bitmap(string file, int w, int h, PixelFormat px, byte[] bts, ZCT coord, int index) => this.Initialize(file, w, h, px, bts, coord, index, (Plane)null);
+
         public Bitmap(int w, int h, PixelFormat px)
         {
-            SizeX = w;
-            SizeY = h;
-            pixelFormat = px;
-            Coordinate = new ZCT();
-            Bytes = new byte[h * Stride];
+            this.SizeX = w;
+            this.SizeY = h;
+            this.pixelFormat = px;
+            this.Coordinate = new ZCT();
+            this.Bytes = new byte[h * this.Stride];
         }
-        public Bitmap(string file, int w, int h, PixelFormat px, byte[] byts, ZCT coord, int index, Plane plane, bool littleEndian = true, bool interleaved = true)
+
+        public Bitmap(
+            string file,
+            int w,
+            int h,
+            PixelFormat px,
+            byte[] byts,
+            ZCT coord,
+            int index,
+            Plane plane,
+            bool littleEndian = true,
+            bool interleaved = true)
         {
-            Initialize(file,w,h,px,byts,coord,index,plane,littleEndian,interleaved);
+            this.Initialize(file, w, h, px, byts, coord, index, plane, littleEndian, interleaved);
         }
+
         public Bitmap(string file, UnmanagedImage im, ZCT coord, int index)
         {
-            ID = CreateID(file, index);
-            SizeX = im.Width;
-            SizeY = im.Height;
-            pixelFormat = im.PixelFormat;
-            Coordinate = coord;
-            Image = im;
-            stats = Statistics.FromBytes(this);
+            this.ID = Bitmap.CreateID(file, index);
+            this.SizeX = im.Width;
+            this.SizeY = im.Height;
+            this.pixelFormat = im.PixelFormat;
+            this.Coordinate = coord;
+            this.Image = im;
+            this.stats = Statistics.FromBytes(this);
         }
+
         public Bitmap(string file, UnmanagedImage im, ZCT coord, int index, Plane pl)
         {
-            ID = CreateID(file, index);
-            SizeX = im.Width;
-            SizeY = im.Height;
-            pixelFormat = im.PixelFormat;
-            Coordinate = coord;
-            Image = im;
-            Plane = pl;
-            stats = Statistics.FromBytes(this);
+            this.ID = Bitmap.CreateID(file, index);
+            this.SizeX = im.Width;
+            this.SizeY = im.Height;
+            this.pixelFormat = im.PixelFormat;
+            this.Coordinate = coord;
+            this.Image = im;
+            this.Plane = pl;
+            this.stats = Statistics.FromBytes(this);
         }
+
         public Bitmap(int width, int height, int stride, PixelFormat pixelFormat, IntPtr imageData)
         {
-            SizeX = width;
-            SizeY = height;
-            this.pixelFormat= pixelFormat;
-            bytes = new byte[stride * height];
-            Marshal.Copy(imageData, bytes, 0, stride * height);
-            stats = Statistics.FromBytes(this);
+            this.SizeX = width;
+            this.SizeY = height;
+            this.pixelFormat = pixelFormat;
+            this.bytes = new byte[stride * height];
+            Marshal.Copy(imageData, this.bytes, 0, stride * height);
+            this.stats = Statistics.FromBytes(this);
         }
+
         public Bitmap(UnmanagedImage im)
         {
-            SizeX = im.Width;
-            SizeY = im.Height;
-            pixelFormat = im.PixelFormat;
-            Coordinate = new ZCT();
-            Image = im;
-            stats = Statistics.FromBytes(this);
+            this.SizeX = im.Width;
+            this.SizeY = im.Height;
+            this.pixelFormat = im.PixelFormat;
+            this.Coordinate = new ZCT();
+            this.Image = im;
+            this.stats = Statistics.FromBytes(this);
         }
-        public Bitmap(int w, int h, PixelFormat px, byte[] bts, ZCT coord, string id)
-        {
-            Initialize(id, w, h, px, bts, coord, 0, null);
-        }
-        public static UnmanagedImage SwitchRedBlue(UnmanagedImage image)
-        {
-            return SwitchRedBlue(new Bitmap(image)).Image;
-        }
+
+        public Bitmap(int w, int h, PixelFormat px, byte[] bts, ZCT coord, string id) => this.Initialize(id, w, h, px, bts, coord, 0, (Plane)null);
+
+        public static UnmanagedImage SwitchRedBlue(UnmanagedImage image) => Bitmap.SwitchRedBlue(new Bitmap(image)).Image;
+
         public static Bitmap SwitchRedBlue(Bitmap image)
         {
-            ExtractChannel cr = new ExtractChannel(AForge.Imaging.RGB.R);
-            ExtractChannel cb = new ExtractChannel(AForge.Imaging.RGB.B);
-            // apply the filter
-            UnmanagedImage rImage = cr.Apply(image.Image);
-            UnmanagedImage bImage = cb.Apply(image.Image);
-
-            ReplaceChannel replaceRFilter = new ReplaceChannel(AForge.Imaging.RGB.R, bImage);
-            replaceRFilter.ApplyInPlace(image.Image);
-
-            ReplaceChannel replaceBFilter = new ReplaceChannel(AForge.Imaging.RGB.B, rImage);
-            replaceBFilter.ApplyInPlace(image.Image);
-            rImage.Dispose();
-            bImage.Dispose();
+            ExtractChannel extractChannel1 = new ExtractChannel((short)2);
+            ExtractChannel extractChannel2 = new ExtractChannel((short)0);
+            UnmanagedImage image1 = image.Image;
+            UnmanagedImage channelImage1 = extractChannel1.Apply(image1);
+            UnmanagedImage channelImage2 = extractChannel2.Apply(image.Image);
+            new ReplaceChannel((short)2, channelImage2).ApplyInPlace(image.Image);
+            new ReplaceChannel((short)0, channelImage1).ApplyInPlace(image.Image);
+            channelImage1.Dispose();
+            channelImage2.Dispose();
             return image;
         }
+
         public void SwitchRedBlue()
         {
-            if (PixelFormat == PixelFormat.Format8bppIndexed || PixelFormat == PixelFormat.Format16bppGrayScale || Bytes == null)
+            if (this.PixelFormat == PixelFormat.Format8bppIndexed || this.PixelFormat == PixelFormat.Format16bppGrayScale || this.Bytes == null)
                 return;
-            //Bitmap bf = new Bitmap(SizeX, SizeY,PixelFormat, bytes, Coordinate, ID);
-            if (PixelFormat == PixelFormat.Format24bppRgb)
-                for (int y = 0; y < SizeY; y++)
-                {
-                    for (int x = 0; x < Stride; x += 3)
-                    {
-                        int i = y * Stride + x;
-                        byte bb = bytes[i + 2];
-                        bytes[i + 2] = bytes[i];
-                        bytes[i] = bb;
-                    }
-                }
-            else
-            if (PixelFormat == PixelFormat.Format32bppArgb || PixelFormat == PixelFormat.Format32bppRgb)
-                for (int y = 0; y < SizeY; y++)
-                {
-                    for (int x = 0; x < Stride; x += 4)
-                    {
-                        int i = y * Stride + x;
-                        byte bb = bytes[i + 2];
-                        bytes[i + 2] = bytes[i];
-                        bytes[i] = bb;
-                    }
-                }
-            else
-            if (PixelFormat == PixelFormat.Format48bppRgb)
+            if (this.PixelFormat == PixelFormat.Format24bppRgb)
             {
-                for (int y = 0; y < SizeY; y++)
+                for (int index1 = 0; index1 < this.SizeY; ++index1)
                 {
-                    //getting the pixels of current row
-                    int rowRGB = y * (Stride);
-                    //iterating through all the pixels in x direction
-                    for (int x = 0; x < Stride; x += 6)
+                    for (int index2 = 0; index2 < this.Stride; index2 += 3)
                     {
-                        int indexRGB = x;
-                        byte b1 = bytes[rowRGB + indexRGB];
-                        byte b2 = bytes[rowRGB + indexRGB + 1];
-                        //B
-                        bytes[rowRGB + indexRGB] = bytes[rowRGB + indexRGB + 4];
-                        bytes[rowRGB + indexRGB + 1] = bytes[rowRGB + indexRGB + 5];
-                        //R
-                        bytes[rowRGB + indexRGB + 4] = b1;
-                        bytes[rowRGB + indexRGB + 5] = b2;
+                        int index3 = index1 * this.Stride + index2;
+                        byte num = this.bytes[index3 + 2];
+                        this.bytes[index3 + 2] = this.bytes[index3];
+                        this.bytes[index3] = num;
+                    }
+                }
+            }
+            else if (this.PixelFormat == PixelFormat.Format32bppArgb || this.PixelFormat == PixelFormat.Format32bppRgb)
+            {
+                for (int index4 = 0; index4 < this.SizeY; ++index4)
+                {
+                    for (int index5 = 0; index5 < this.Stride; index5 += 4)
+                    {
+                        int index6 = index4 * this.Stride + index5;
+                        byte num = this.bytes[index6 + 2];
+                        this.bytes[index6 + 2] = this.bytes[index6];
+                        this.bytes[index6] = num;
+                    }
+                }
+            }
+            else
+            {
+                if (this.PixelFormat != PixelFormat.Format48bppRgb)
+                    return;
+                for (int index7 = 0; index7 < this.SizeY; ++index7)
+                {
+                    int num1 = index7 * this.Stride;
+                    for (int index8 = 0; index8 < this.Stride; index8 += 6)
+                    {
+                        int num2 = index8;
+                        byte num3 = this.bytes[num1 + num2];
+                        byte num4 = this.bytes[num1 + num2 + 1];
+                        this.bytes[num1 + num2] = this.bytes[num1 + num2 + 4];
+                        this.bytes[num1 + num2 + 1] = this.bytes[num1 + num2 + 5];
+                        this.bytes[num1 + num2 + 4] = num3;
+                        this.bytes[num1 + num2 + 5] = num4;
                     }
                 }
             }
         }
+
         public byte[] GetSaveBytes(bool littleEndian)
         {
-            Bitmap bf = this.Copy();
+            Bitmap bitmap = this.Copy();
+            if (this.pixelFormat == PixelFormat.Format48bppRgb)
+                bitmap.SwitchRedBlue();
             if (!littleEndian)
-            {
-                bf.SwitchRedBlue();
-                bf.RotateFlip(RotateFlipType.Rotate180FlipNone);
-            }
+                bitmap.RotateFlip(RotateFlipType.Rotate180FlipNone);
             int length = this.bytes.Length;
-            byte[] bytes = new byte[length];
-            Marshal.Copy(bf.Data, bytes, 0, length);
+            byte[] numArray = new byte[length];
+            Marshal.Copy(bitmap.Data, numArray, 0, length);
             if (!littleEndian)
-                Array.Reverse(bytes);
-            return bytes;
+                Array.Reverse<byte>(numArray);
+            return numArray;
         }
+
         public static byte[] GetBuffer(Bitmap bmp, int stride)
         {
-            BitmapData data = bmp.LockBits(new Rectangle(0, 0, bmp.Width, bmp.Height), AForge.ImageLockMode.ReadOnly, bmp.PixelFormat);
-            IntPtr ptr = data.Scan0;
-            int length = data.Stride * bmp.Height;
-            byte[] bytes = new byte[length];
-            Marshal.Copy(ptr, bytes, 0, length);
-            Array.Reverse(bytes);
-            bmp.UnlockBits(data);
+            BitmapData d = bmp.LockBits(new Rectangle(0, 0, bmp.Width, bmp.Height), ImageLockMode.ReadOnly, bmp.PixelFormat);
+            IntPtr scan0 = d.Scan0;
+            int length1 = d.Stride * bmp.Height;
+            byte[] array = new byte[length1];
+            byte[] destination = array;
+            int length2 = length1;
+            Marshal.Copy(scan0, destination, 0, length2);
+            Array.Reverse<byte>(array);
+            bmp.UnlockBits(d);
+            return array;
+        }
 
-            return bytes;
-        }
-        public static Bitmap To24Bit(Bitmap b)
-        {
-            return GetRGB24Data(b.Width, b.Height, b.PixelFormat, b.Bytes);
-        }
-        public static Bitmap To32Bit(Bitmap b)
-        {
-            return b.ImageRGB;
-        }
+        public static Bitmap To24Bit(Bitmap b) => Bitmap.GetRGB24Data(b.Width, b.Height, b.PixelFormat, b.Bytes);
+
+        public static Bitmap To32Bit(Bitmap b) => b.ImageRGB;
+
         public static Bitmap SwitchChannels(Bitmap image, int c1, int c2)
         {
-            ExtractChannel cr = new ExtractChannel((short)c1);
-            ExtractChannel cb = new ExtractChannel((short)c2);
-            // apply the filter
-            UnmanagedImage rImage = cr.Apply(image.Image);
-            UnmanagedImage bImage = cb.Apply(image.Image);
-            ReplaceChannel replaceRFilter = new ReplaceChannel((short)c1, bImage);
-            replaceRFilter.ApplyInPlace(image.Image);
-            ReplaceChannel replaceBFilter = new ReplaceChannel((short)c2, rImage);
-            replaceBFilter.ApplyInPlace(image.Image);
-            rImage.Dispose();
-            bImage.Dispose();
+            ExtractChannel extractChannel1 = new ExtractChannel((short)c1);
+            ExtractChannel extractChannel2 = new ExtractChannel((short)c2);
+            UnmanagedImage image1 = image.Image;
+            UnmanagedImage channelImage1 = extractChannel1.Apply(image1);
+            UnmanagedImage channelImage2 = extractChannel2.Apply(image.Image);
+            new ReplaceChannel((short)c1, channelImage2).ApplyInPlace(image.Image);
+            new ReplaceChannel((short)c2, channelImage1).ApplyInPlace(image.Image);
+            channelImage1.Dispose();
+            channelImage2.Dispose();
             return image;
         }
+
         public Bitmap Copy()
         {
-            byte[] bt = new byte[Bytes.Length];
-            for (int i = 0; i < bt.Length; i++)
+            byte[] bts = new byte[this.Bytes.Length];
+            for (int index = 0; index < bts.Length; ++index)
+                bts[index] = this.bytes[index];
+            return new Bitmap(this.SizeX, this.SizeY, this.PixelFormat, bts, this.Coordinate, this.ID)
             {
-                bt[i] = bytes[i];
-            }
-            Bitmap bf = new Bitmap(SizeX, SizeY, PixelFormat, bt, Coordinate, ID);
-            bf.plane = Plane;
-            return bf;
+                plane = this.Plane
+            };
         }
+
         public Bitmap CopyInfo()
         {
-            Bitmap bf = new Bitmap(SizeX, SizeY, PixelFormat, new byte[Stride * SizeY], Coordinate, ID);
-            bf.bytes = new byte[bf.Stride * bf.SizeY];
-            bf.plane = Plane;
-            return bf;
+            Bitmap bitmap = new Bitmap(this.SizeX, this.SizeY, this.PixelFormat, new byte[this.Stride * this.SizeY], this.Coordinate, this.ID);
+            bitmap.bytes = new byte[bitmap.Stride * bitmap.SizeY];
+            bitmap.plane = this.Plane;
+            return bitmap;
         }
+
         public void To8Bit()
         {
-            Bitmap bm = AForge.Imaging.Image.Convert16bppTo8bpp(this);
-            bm.RotateFlip(RotateFlipType.Rotate180FlipNone);
-            Image = bm;
+            Bitmap bitmap = AForge.Imaging.Image.Convert16bppTo8bpp(this);
+            bitmap.RotateFlip(RotateFlipType.Rotate180FlipNone);
+            this.Image = (UnmanagedImage)bitmap;
         }
-        public void To16Bit()
-        {
-            Bitmap bm = AForge.Imaging.Image.Convert8bppTo16bpp(this);
-            Image = bm;
-        }
-        /*
-        public static explicit operator Bitmap(UnmanagedImage v)
-        {
-            return new Bitmap(v);
-        }
-        */
+
+        public void To16Bit() => this.Image = (UnmanagedImage)AForge.Imaging.Image.Convert8bppTo16bpp(this);
+
         public void ToRGB()
         {
-            int stride;
-            if (BitsPerPixel > 8)
-                stride = SizeX * 3 * 2;
+            if (this.BitsPerPixel > 8)
+            {
+                int sizeX1 = this.SizeX;
+            }
             else
-                stride = SizeX * 3;
+            {
+                int sizeX2 = this.SizeX;
+            }
+            int sizeX3 = this.SizeX;
+            int sizeY = this.SizeY;
+            if (this.PixelFormat == PixelFormat.Format48bppRgb)
+                return;
+            if (this.PixelFormat == PixelFormat.Format16bppGrayScale)
+            {
+                byte[] numArray = new byte[sizeY * this.SizeX * 3 * 2];
+                for (int index1 = 0; index1 < sizeY; ++index1)
+                {
+                    int num1 = index1 * (sizeX3 * 2 * 3);
+                    int num2 = index1 * (sizeX3 * 2);
+                    for (int index2 = 0; index2 < sizeX3; ++index2)
+                    {
+                        int num3 = index2 * 6;
+                        int num4 = index2 * 2;
+                        numArray[num1 + num3] = this.Bytes[num2 + num4];
+                        numArray[num1 + num3 + 1] = this.Bytes[num2 + num4 + 1];
+                        numArray[num1 + num3 + 2] = this.Bytes[num2 + num4];
+                        numArray[num1 + num3 + 3] = this.Bytes[num2 + num4 + 1];
+                        numArray[num1 + num3 + 4] = this.Bytes[num2 + num4];
+                        numArray[num1 + num3 + 5] = this.Bytes[num2 + num4 + 1];
+                    }
+                }
+                this.Bytes = numArray;
+                this.PixelFormat = PixelFormat.Format48bppRgb;
+            }
+            else
+            {
+                if (this.PixelFormat == PixelFormat.Format24bppRgb || this.PixelFormat != PixelFormat.Format8bppIndexed)
+                    return;
+                byte[] numArray = new byte[sizeY * this.SizeX * 3];
+                for (int index3 = 0; index3 < this.SizeY; ++index3)
+                {
+                    int num5 = index3 * (this.SizeX * 3);
+                    int num6 = index3 * this.SizeX;
+                    for (int index4 = 0; index4 < this.SizeX; ++index4)
+                    {
+                        int num7 = index4 * 3;
+                        int num8 = index4;
+                        numArray[num5 + num7] = this.Bytes[num6 + num8];
+                        numArray[num5 + num7 + 1] = this.Bytes[num6 + num8];
+                        numArray[num5 + num7 + 2] = this.Bytes[num6 + num8];
+                    }
+                }
+                this.Bytes = numArray;
+                this.PixelFormat = PixelFormat.Format24bppRgb;
+            }
+        }
 
-            int w = SizeX;
-            int h = SizeY;
-            byte[] bts = null;
-            if (PixelFormat == PixelFormat.Format48bppRgb)
-            {
-                return;
-            }
-            else
-            if (PixelFormat == PixelFormat.Format16bppGrayScale)
-            {
-                bts = new byte[h * SizeX * 3 * 2];
-                for (int y = 0; y < h; y++)
-                {
-                    //getting the pixels of current row
-                    int rowRGB = y * (w * 2 * 3);
-                    int row16 = y * (w * 2);
-                    //iterating through all the pixels in x direction
-                    for (int x = 0; x < w; x++)
-                    {
-                        int indexRGB = x * 6;
-                        int index16 = x * 2;
-                        //R
-                        bts[rowRGB + indexRGB] = Bytes[row16 + index16];
-                        bts[rowRGB + indexRGB + 1] = Bytes[row16 + index16 + 1];
-                        //G
-                        bts[rowRGB + indexRGB + 2] = Bytes[row16 + index16];
-                        bts[rowRGB + indexRGB + 3] = Bytes[row16 + index16 + 1];
-                        //B
-                        bts[rowRGB + indexRGB + 4] = Bytes[row16 + index16];
-                        bts[rowRGB + indexRGB + 5] = Bytes[row16 + index16 + 1];
-                    }
-                }
-                Bytes = bts;
-                PixelFormat = PixelFormat.Format48bppRgb;
-            }
-            else
-            if (PixelFormat == PixelFormat.Format24bppRgb)
-            {
-                return;
-            }
-            else
-            if (PixelFormat == PixelFormat.Format8bppIndexed)
-            {
-                bts = new byte[h * SizeX * 3];
-                for (int y = 0; y < SizeY; y++)
-                {
-                    //getting the pixels of current row
-                    int rowRGB = y * (SizeX * 3);
-                    int row8 = y * (SizeX);
-                    //iterating through all the pixels in x direction
-                    for (int x = 0; x < SizeX; x++)
-                    {
-                        int indexRGB = x * 3;
-                        int index8 = x;
-                        bts[rowRGB + indexRGB] = Bytes[row8 + index8];
-                        bts[rowRGB + indexRGB + 1] = Bytes[row8 + index8];
-                        bts[rowRGB + indexRGB + 2] = Bytes[row8 + index8];
-                    }
-                }
-                Bytes = bts;
-                PixelFormat = PixelFormat.Format24bppRgb;
-            }
-        }
-        public bool isRGB
-        {
-            get
-            {
-                if (pixelFormat == PixelFormat.Format8bppIndexed || pixelFormat == PixelFormat.Format16bppGrayScale)
-                    return false;
-                else
-                    return true;
-            }
-        }
-        public override string ToString()
-        {
-            return ID;
-        }
+        public bool isRGB => this.pixelFormat != PixelFormat.Format8bppIndexed && this.pixelFormat != PixelFormat.Format16bppGrayScale;
+
+        public override string ToString() => this.ID;
+
         public void Dispose()
         {
-            bytes = null;
-            if (stats != null)
+            this.bytes = (byte[])null;
+            if (this.stats != null)
             {
-                for (int i = 0; i < stats.Length; i++)
+                for (int index = 0; index < this.stats.Length; ++index)
                 {
-                    if (stats[i] != null)
-                        stats[i].Dispose();
+                    if (this.stats[index] != null)
+                        this.stats[index].Dispose();
                 }
             }
-            ID = null;
-            file = null;
+            this.ID = (string)null;
+            this.file = (string)null;
             GC.Collect();
         }
+
         public static Bitmap operator /(Bitmap a, Bitmap b)
         {
-            Bitmap bf = a.CopyInfo();
-            for (int y = 0; y < a.SizeY; y++)
+            Bitmap bitmap = a.CopyInfo();
+            for (int iy = 0; iy < a.SizeY; ++iy)
             {
-                for (int x = 0; x < a.SizeX; x++)
-                {
-                    bf.SetPixel(x, y, a.GetPixel(x, y) / b.GetPixel(x, y));
-                }
+                for (int ix = 0; ix < a.SizeX; ++ix)
+                    bitmap.SetPixel(ix, iy, a.GetPixel(ix, iy) / b.GetPixel(ix, iy));
             }
-            return bf;
+            return bitmap;
         }
+
         public static Bitmap operator *(Bitmap a, Bitmap b)
         {
-            Bitmap bf = a.CopyInfo();
-            for (int y = 0; y < a.SizeY; y++)
+            Bitmap bitmap = a.CopyInfo();
+            for (int iy = 0; iy < a.SizeY; ++iy)
             {
-                for (int x = 0; x < a.SizeX; x++)
-                {
-                    bf.SetPixel(x, y, a.GetPixel(x, y) * b.GetPixel(x, y));
-                }
+                for (int ix = 0; ix < a.SizeX; ++ix)
+                    bitmap.SetPixel(ix, iy, a.GetPixel(ix, iy) * b.GetPixel(ix, iy));
             }
-            return bf;
+            return bitmap;
         }
+
         public static Bitmap operator +(Bitmap a, Bitmap b)
         {
-            Bitmap bf = a.CopyInfo();
-            for (int y = 0; y < a.SizeY; y++)
+            Bitmap bitmap = a.CopyInfo();
+            for (int iy = 0; iy < a.SizeY; ++iy)
             {
-                for (int x = 0; x < a.SizeX; x++)
-                {
-                    bf.SetPixel(x, y, a.GetPixel(x, y) + b.GetPixel(x, y));
-                }
+                for (int ix = 0; ix < a.SizeX; ++ix)
+                    bitmap.SetPixel(ix, iy, a.GetPixel(ix, iy) + b.GetPixel(ix, iy));
             }
-            return bf;
+            return bitmap;
         }
+
         public static Bitmap operator -(Bitmap a, Bitmap b)
         {
-            Bitmap bf = a.CopyInfo();
-            for (int y = 0; y < a.SizeY; y++)
+            Bitmap bitmap = a.CopyInfo();
+            for (int iy = 0; iy < a.SizeY; ++iy)
             {
-                for (int x = 0; x < a.SizeX; x++)
-                {
-                    bf.SetPixel(x, y, a.GetPixel(x, y) - b.GetPixel(x, y));
-                }
+                for (int ix = 0; ix < a.SizeX; ++ix)
+                    bitmap.SetPixel(ix, iy, a.GetPixel(ix, iy) - b.GetPixel(ix, iy));
             }
-            return bf;
+            return bitmap;
         }
 
         public static Bitmap operator /(Bitmap a, float b)
         {
-            Bitmap bf = a.CopyInfo();
-            for (int y = 0; y < a.SizeY; y++)
+            Bitmap bitmap = a.CopyInfo();
+            for (int iy = 0; iy < a.SizeY; ++iy)
             {
-                for (int x = 0; x < a.SizeX; x++)
-                {
-                    bf.SetPixel(x, y, a.GetPixel(x, y) / b);
-                }
+                for (int ix = 0; ix < a.SizeX; ++ix)
+                    bitmap.SetPixel(ix, iy, a.GetPixel(ix, iy) / b);
             }
-            return bf;
+            return bitmap;
         }
+
         public static Bitmap operator *(Bitmap a, float b)
         {
-            Bitmap bf = a.CopyInfo();
-            for (int y = 0; y < a.SizeY; y++)
+            Bitmap bitmap = a.CopyInfo();
+            for (int iy = 0; iy < a.SizeY; ++iy)
             {
-                for (int x = 0; x < a.SizeX; x++)
-                {
-                    bf.SetPixel(x, y, a.GetPixel(x, y) * b);
-                }
+                for (int ix = 0; ix < a.SizeX; ++ix)
+                    bitmap.SetPixel(ix, iy, a.GetPixel(ix, iy) * b);
             }
-            return bf;
+            return bitmap;
         }
+
         public static Bitmap operator +(Bitmap a, float b)
         {
-            Bitmap bf = a.CopyInfo();
-            for (int y = 0; y < a.SizeY; y++)
+            Bitmap bitmap = a.CopyInfo();
+            for (int iy = 0; iy < a.SizeY; ++iy)
             {
-                for (int x = 0; x < a.SizeX; x++)
-                {
-                    bf.SetPixel(x, y, a.GetPixel(x, y) + b);
-                }
+                for (int ix = 0; ix < a.SizeX; ++ix)
+                    bitmap.SetPixel(ix, iy, a.GetPixel(ix, iy) + b);
             }
-            return bf;
+            return bitmap;
         }
+
         public static Bitmap operator -(Bitmap a, float b)
         {
-            Bitmap bf = a.CopyInfo();
-            for (int y = 0; y < a.SizeY; y++)
+            Bitmap bitmap = a.CopyInfo();
+            for (int iy = 0; iy < a.SizeY; ++iy)
             {
-                for (int x = 0; x < a.SizeX; x++)
-                {
-                    bf.SetPixel(x, y, a.GetPixel(x, y) - b);
-                }
+                for (int ix = 0; ix < a.SizeX; ++ix)
+                    bitmap.SetPixel(ix, iy, a.GetPixel(ix, iy) - b);
             }
-            return bf;
+            return bitmap;
         }
 
         public static Bitmap operator /(Bitmap a, ColorS b)
         {
-            Bitmap bf = a.CopyInfo();
-            for (int y = 0; y < a.SizeY; y++)
+            Bitmap bitmap = a.CopyInfo();
+            for (int iy = 0; iy < a.SizeY; ++iy)
             {
-                for (int x = 0; x < a.SizeX; x++)
-                {
-                    bf.SetPixel(x, y, a.GetPixel(x, y) / b);
-                }
+                for (int ix = 0; ix < a.SizeX; ++ix)
+                    bitmap.SetPixel(ix, iy, a.GetPixel(ix, iy) / b);
             }
-            return bf;
+            return bitmap;
         }
+
         public static Bitmap operator *(Bitmap a, ColorS b)
         {
-            Bitmap bf = a.Copy();
-            for (int y = 0; y < a.SizeY; y++)
+            Bitmap bitmap = a.Copy();
+            for (int iy = 0; iy < a.SizeY; ++iy)
             {
-                for (int x = 0; x < a.SizeX; x++)
-                {
-                    bf.SetPixel(x, y, a.GetPixel(x, y) * b);
-                }
+                for (int ix = 0; ix < a.SizeX; ++ix)
+                    bitmap.SetPixel(ix, iy, a.GetPixel(ix, iy) * b);
             }
-            return bf;
+            return bitmap;
         }
+
         public static Bitmap operator +(Bitmap a, ColorS b)
         {
-            Bitmap bf = a.CopyInfo();
-            for (int y = 0; y < a.SizeY; y++)
+            Bitmap bitmap = a.CopyInfo();
+            for (int iy = 0; iy < a.SizeY; ++iy)
             {
-                for (int x = 0; x < a.SizeX; x++)
-                {
-                    bf.SetPixel(x, y, a.GetPixel(x, y) + b);
-                }
+                for (int ix = 0; ix < a.SizeX; ++ix)
+                    bitmap.SetPixel(ix, iy, a.GetPixel(ix, iy) + b);
             }
-            return bf;
+            return bitmap;
         }
+
         public static Bitmap operator -(Bitmap a, ColorS b)
         {
-            Bitmap bf = a.CopyInfo();
-            for (int y = 0; y < a.SizeY; y++)
+            Bitmap bitmap = a.CopyInfo();
+            for (int iy = 0; iy < a.SizeY; ++iy)
             {
-                for (int x = 0; x < a.SizeX; x++)
-                {
-                    bf.SetPixel(x, y, a.GetPixel(x, y) - b);
-                }
+                for (int ix = 0; ix < a.SizeX; ++ix)
+                    bitmap.SetPixel(ix, iy, a.GetPixel(ix, iy) - b);
             }
-            return bf;
+            return bitmap;
+        }
+
+        public class ColorPalette
+        {
+            internal Color[] entries;
+
+            public Color[] Entries
+            {
+                get => this.entries;
+                set => this.entries = value;
+            }
+
+            public ColorPalette() => this.entries = new Color[256];
         }
     }
 }

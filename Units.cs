@@ -213,9 +213,24 @@ namespace AForge
         }
         public static bool operator !=(PointD p1, PointD p2)
         {
-            return (p1.X != p2.X && p1.Y != p2.Y);
+            return (p1.X != p2.X || p1.Y != p2.Y);
         }
-
+        public static PointD operator +(PointD p1, PointD p2)
+        {
+            return new PointD(p1.X + p2.X, p1.Y + p2.Y);
+        }
+        public static PointD operator -(PointD p1, PointD p2)
+        {
+            return new PointD(p1.X - p2.X, p1.Y - p2.Y);
+        }
+        public static PointD operator *(PointD p1, PointD p2)
+        {
+            return new PointD(p1.X * p2.X, p1.Y * p2.Y);
+        }
+        public static PointD operator /(PointD p1, PointD p2)
+        {
+            return new PointD(p1.X / p2.X, p1.Y / p2.Y);
+        }
         public override string ToString()
         {
             return X.ToString() + "," + Y.ToString();
@@ -405,7 +420,30 @@ namespace AForge
             float distance = (float)System.Math.Sqrt(deltaX * deltaX + deltaY * deltaY + deltaZ * deltaZ);
             return distance;
         }
-
+        public static bool operator ==(Point3D p1, Point3D p2)
+        {
+            return (p1.X == p2.X && p1.Y == p2.Y && p1.Z == p2.Z);
+        }
+        public static bool operator !=(Point3D p1, Point3D p2)
+        {
+            return !(p1.X == p2.X && p1.Y == p2.Y && p1.Z == p2.Z);
+        }
+        public static Point3D operator +(Point3D p1, Point3D p2)
+        {
+            return new Point3D(p1.X + p2.X, p1.Y + p2.Y, p1.Z + p2.Z);
+        }
+        public static Point3D operator -(Point3D p1, Point3D p2)
+        {
+            return new Point3D(p1.X - p2.X, p2.Y - p2.Y,p1.Z - p2.Z);
+        }
+        public static Point3D operator *(Point3D p1, Point3D p2)
+        {
+            return new Point3D(p1.X * p2.X, p1.Y * p2.Y, p1.Z * p2.Z);
+        }
+        public static Point3D operator /(Point3D p1, Point3D p2)
+        {
+            return new Point3D(p1.X / p2.X, p1.Y / p2.Y, p1.Z / p2.Z);
+        }
     }
     [Serializable]
     public struct VolumeD

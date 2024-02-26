@@ -6,9 +6,9 @@
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
     <OutputType>Library</OutputType>
-    <Version>1.4.3</Version>
-    <AssemblyVersion>1.4.3</AssemblyVersion>
-    <FileVersion>1.4.3</FileVersion>
+    <Version>1.5.2</Version>
+    <AssemblyVersion>1.5.2</AssemblyVersion>
+    <FileVersion>1.5.2</FileVersion>
     <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
     <PackageId>AForgeBio</PackageId>
     <Title>AForgeBio</Title>
@@ -21,7 +21,7 @@
     <PackageRequireLicenseAcceptance>True</PackageRequireLicenseAcceptance>
     <Platforms>AnyCPU;x64;ARM64</Platforms>
     <PlatformTarget>AnyCPU</PlatformTarget>
-    <PackageReleaseNotes>48bpp interleaving fix.</PackageReleaseNotes>
+    <PackageReleaseNotes>BigEndian RGB to BGR.</PackageReleaseNotes>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
@@ -37,11 +37,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="GtkSharp" Version="3.24.24.95" />
-    <PackageReference Include="NuGet.Build.Tasks.Pack" Version="6.6.1">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-    </PackageReference>
+    <PackageReference Include="GtkSharp" Version="3.22.24.32" />
   </ItemGroup>
 
   <ItemGroup>
