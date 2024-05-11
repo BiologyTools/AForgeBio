@@ -8,10 +8,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Runtime.InteropServices;
-using System.Threading;
-using System.Runtime.Serialization;
-using System.Text;
-using Gtk;
+
 namespace AForge
 {
     public enum PixelFormat
@@ -28,6 +25,7 @@ namespace AForge
         Format48bppRgb,
         Format64bppArgb,
         Format64bppPArgb,
+        Float,
     }
     public enum RotateFlipType
     {
@@ -701,8 +699,8 @@ namespace AForge
             set { values = value; }
         }
         private int bitsPerPixel;
-        private int min = ushort.MaxValue;
-        private int max = ushort.MinValue;
+        private float min = ushort.MaxValue;
+        private float max = ushort.MinValue;
         private float stackMin = ushort.MaxValue;
         private float stackMax = ushort.MinValue;
         private float stackMean = 0;
@@ -712,11 +710,11 @@ namespace AForge
         private float meansum = 0;
         private float[] stackValues = new float[ushort.MaxValue];
         private int count = 0;
-        public int Min
+        public float Min
         {
             get { return min; }
         }
-        public int Max
+        public float Max
         {
             get { return max; }
         }
@@ -767,27 +765,17 @@ namespace AForge
         {
             get { return stackValues; }
         }
-        public Statistics(bool bit16)
+        public Statistics(int bitsPerPixel)
         {
             values = new int[ushort.MaxValue + 1];
-            if (bit16)
-            {
-                bitsPerPixel = 16;
-            }
-            else
-            {
-                bitsPerPixel = 8;
-            }
+            this.bitsPerPixel = bitsPerPixel;
         }
         public static Statistics[] FromBytes(byte[] bts, int w, int h, int rGBChannels, int BitsPerPixel, int stride)
         {
             Statistics[] sts = new Statistics[rGBChannels];
-            bool bit16 = false;
-            if (BitsPerPixel > 8)
-                bit16 = true;
             for (int i = 0; i < rGBChannels; i++)
             {
-                sts[i] = new Statistics(bit16);
+                sts[i] = new Statistics(BitsPerPixel);
                 sts[i].max = ushort.MinValue;
                 sts[i].min = ushort.MaxValue;
                 sts[i].bitsPerPixel = BitsPerPixel;
@@ -801,40 +789,53 @@ namespace AForge
             {
                 for (int y = 0; y < h; y++)
                 {
-                    for (int x = 0; x < stride; x += 2 * rGBChannels)
+                    int BytesPerPixel = BitsPerPixel / 8;
+                    for (int x = 0; x < stride; x += BytesPerPixel * rGBChannels)
                     {
-                        if (rGBChannels == 3)
+                        if (BitsPerPixel == 16)
                         {
-                            ushort b = BitConverter.ToUInt16(bts, (y * stride + (x)));
-                            ushort g = BitConverter.ToUInt16(bts, (y * stride + (x + 2)));
-                            ushort r = BitConverter.ToUInt16(bts, (y * stride + (x + 4)));
-                            if (sts[0].max < r)
-                                sts[0].max = r;
-                            if (sts[0].min > r)
-                                sts[0].min = r;
-                            sts[0].values[r]++;
-                            sumr += r;
-                            if (sts[1].max < g)
-                                sts[1].max = g;
-                            if (sts[1].min > g)
-                                sts[1].min = g;
-                            sts[1].values[g]++;
-                            sumg += g;
-                            if (sts[2].max < b)
-                                sts[2].max = b;
-                            if (sts[2].min > b)
-                                sts[2].min = b;
-                            sts[2].values[b]++;
-                            sumb += b;
+                            if (rGBChannels == 3)
+                            {
+                                ushort b = BitConverter.ToUInt16(bts, (y * stride + (x)));
+                                ushort g = BitConverter.ToUInt16(bts, (y * stride + (x + 2)));
+                                ushort r = BitConverter.ToUInt16(bts, (y * stride + (x + 4)));
+                                if (sts[0].max < r)
+                                    sts[0].max = r;
+                                if (sts[0].min > r)
+                                    sts[0].min = r;
+                                sts[0].values[r]++;
+                                sumr += r;
+                                if (sts[1].max < g)
+                                    sts[1].max = g;
+                                if (sts[1].min > g)
+                                    sts[1].min = g;
+                                sts[1].values[g]++;
+                                sumg += g;
+                                if (sts[2].max < b)
+                                    sts[2].max = b;
+                                if (sts[2].min > b)
+                                    sts[2].min = b;
+                                sts[2].values[b]++;
+                                sumb += b;
+                            }
+                            else
+                            {
+                                ushort r = BitConverter.ToUInt16(bts, (y * stride + (x)));
+                                if (sts[0].max < r)
+                                    sts[0].max = r;
+                                if (sts[0].min > r)
+                                    sts[0].min = r;
+                                sts[0].values[r]++;
+                                sumr += r;
+                            }
                         }
-                        else
+                        else if(BitsPerPixel == 32)
                         {
-                            ushort r = BitConverter.ToUInt16(bts, (y * stride + (x)));
+                            float r = BitConverter.ToSingle(bts, (y * stride + (x)));
                             if (sts[0].max < r)
                                 sts[0].max = r;
                             if (sts[0].min > r)
                                 sts[0].min = r;
-                            sts[0].values[r]++;
                             sumr += r;
                         }
                     }
@@ -1363,7 +1364,6 @@ namespace AForge
             set
             {
                 info.samplesPerPixel = value;
-                range = new IntRange[info.samplesPerPixel];
             }
         }
         public Color? Color
@@ -1442,6 +1442,8 @@ namespace AForge
         public Channel(int ind, int bitsPerPixel, int samples)
         {
             info = new ChannelInfo();
+            if (bitsPerPixel == 32)
+                info.Max = 1;
             if (bitsPerPixel == 16)
                 info.Max = 65535;
             if (bitsPerPixel == 14)
@@ -1612,7 +1614,7 @@ namespace AForge
         private bool littleEndian = BitConverter.IsLittleEndian;
         private Plane plane;
 
-        public ushort GetValueRGB(int x, int y, int RGBChannel)
+        public float GetValueRGB(int x, int y, int RGBChannel)
         {
             if (this.bytes == null)
                 return 0;
@@ -1620,17 +1622,20 @@ namespace AForge
                 x = 0;
             if (y >= this.SizeY || y < 0)
                 y = 0;
-            int sizeX1 = this.SizeX;
             if (this.BitsPerPixel > 8)
-                return BitConverter.ToUInt16(this.bytes, (y * sizeX1 + x) * 2 * this.RGBChannelsCount + RGBChannel * 2);
-            int sizeX2 = this.SizeX;
-            return (ushort)this.bytes[(y * sizeX1 + x) * this.RGBChannelsCount + RGBChannel];
+            {
+                if(BitsPerPixel > 8 && BitsPerPixel < 32)
+                    return BitConverter.ToUInt16(this.bytes, (y * SizeX + x) * 2 * this.RGBChannelsCount + RGBChannel * 2);
+                else
+                    return BitConverter.ToSingle(this.bytes, (y * SizeX + x) * 4 * this.RGBChannelsCount + RGBChannel * 4);
+            }
+            return this.bytes[(y * SizeX + x) * this.RGBChannelsCount + RGBChannel];
         }
 
         public ColorS GetPixel(int ix, int iy)
         {
             if (this.isRGB)
-                return new ColorS(this.GetValueRGB(ix, iy, 0), this.GetValueRGB(ix, iy, 1), this.GetValueRGB(ix, iy, 2));
+                return new ColorS((ushort)this.GetValueRGB(ix, iy, 0), (ushort)this.GetValueRGB(ix, iy, 1), (ushort)this.GetValueRGB(ix, iy, 2));
             int valueRgb = (int)this.GetValueRGB(ix, iy, 0);
             return new ColorS((ushort)valueRgb, (ushort)valueRgb, (ushort)valueRgb);
         }
@@ -1643,16 +1648,42 @@ namespace AForge
                 this.SetValue(ix, iy, col.R);
         }
 
+        public void SetPixel(int ix, int iy, float f)
+        {
+            this.SetValue(ix, iy, f);
+        }
+
+        public void SetPixel(int ix, int iy, byte f)
+        {
+            this.SetValue(ix, iy, f);
+        }
+
         public void SetValue(int x, int y, ushort value)
         {
             int sizeX = this.SizeX;
             if (this.BitsPerPixel > 8)
             {
-                int index = (y * sizeX + x) * 2 * this.RGBChannelsCount;
-                byte num1 = (byte)((uint)value >> 8);
-                byte num2 = (byte)((uint)value & (uint)byte.MaxValue);
-                this.bytes[index] = num1;
-                this.bytes[index + 1] = num2;
+                byte[] bts = BitConverter.GetBytes(value);
+                int index = (y * sizeX + x) * bts.Length * this.RGBChannelsCount;
+                for (int i = 0; i < bts.Length; i++)
+                {
+                    this.bytes[index + i] = (byte)bts[i];
+                }
+            }
+            this.bytes[(y * sizeX + x) * this.RGBChannelsCount] = (byte)value;
+        }
+
+        public void SetValue(int x, int y, float value)
+        {
+            int sizeX = this.SizeX;
+            if (this.BitsPerPixel > 8)
+            {
+                byte[] bts = BitConverter.GetBytes(value);
+                int index = (y * sizeX + x) * bts.Length * this.RGBChannelsCount;
+                for (int i = 0; i < bts.Length; i++)
+                {
+                    this.bytes[index + i] = (byte)bts[i];
+                }
             }
             else
                 this.bytes[(y * sizeX + x) * this.RGBChannelsCount] = (byte)value;
@@ -1660,28 +1691,22 @@ namespace AForge
 
         public void SetValueRGB(int ix, int iy, int RGBChannel, ushort value)
         {
-            int num1 = ix;
-            int num2 = iy;
-            switch (RGBChannel)
-            {
-                case 0:
-                    RGBChannel = 2;
-                    break;
-                case 2:
-                    RGBChannel = 0;
-                    break;
-            }
             int sizeX = this.SizeX;
             if (this.BitsPerPixel > 8)
             {
-                int index = (num2 * sizeX + num1) * 2 * this.RGBChannelsCount + RGBChannel * 2;
-                byte num3 = (byte)((uint)value >> 8);
-                byte num4 = (byte)((uint)value & (uint)byte.MaxValue);
-                this.bytes[index] = num3;
-                this.bytes[index + 1] = num4;
+                if (BitsPerPixel == 16)
+                {
+                    int index = (iy * sizeX + ix) * 2 * this.RGBChannelsCount + RGBChannel * 2;
+                    byte num3 = (byte)((uint)value >> 8);
+                    byte num4 = (byte)((uint)value & (uint)byte.MaxValue);
+                    this.bytes[index] = num3;
+                    this.bytes[index + 1] = num4;
+                }
+                else
+                    throw new NotSupportedException("BitsPerPixel: " + BitsPerPixel + " not supported.");
             }
             else
-                this.bytes[(num2 * sizeX + num1) * this.RGBChannelsCount + RGBChannel] = (byte)value;
+                this.bytes[(iy * sizeX + ix) * this.RGBChannelsCount + RGBChannel] = (byte)value;
         }
 
         public void SetColorRGB(int ix, int iy, ColorS value)
@@ -1728,8 +1753,43 @@ namespace AForge
 
         public int Height => this.SizeY;
 
-        public int Stride => this.pixelFormat != PixelFormat.Format8bppIndexed ? (this.pixelFormat != PixelFormat.Format16bppGrayScale ? (this.pixelFormat != PixelFormat.Format24bppRgb ? (this.pixelFormat == PixelFormat.Format32bppRgb || this.pixelFormat == PixelFormat.Format32bppArgb ? this.SizeX * 4 : this.SizeX * 3 * 2) : this.SizeX * 3) : this.SizeX * 2) : this.SizeX;
-
+        public int Stride
+        {
+            get
+            {
+                switch (PixelFormat)
+                {
+                    case PixelFormat.Indexed:
+                        return SizeX;
+                    case PixelFormat.Format1bppIndexed:
+                        return SizeX;
+                    case PixelFormat.Format4bppIndexed:
+                        return SizeX;
+                    case PixelFormat.Format8bppIndexed:
+                        return SizeX;
+                    case PixelFormat.Format16bppGrayScale:
+                        return SizeX * 2;
+                    case PixelFormat.Format24bppRgb:
+                        return SizeX * 3;
+                    case PixelFormat.Format32bppArgb:
+                        return SizeX * 4;
+                    case PixelFormat.Format32bppRgb:
+                        return SizeX * 4;
+                    case PixelFormat.Format32bppPArgb:
+                        return SizeX * 4;
+                    case PixelFormat.Format48bppRgb:
+                        return SizeX * 6;
+                    case PixelFormat.Format64bppArgb:
+                        return SizeX * 8;
+                    case PixelFormat.Format64bppPArgb:
+                        return SizeX * 8;
+                    case PixelFormat.Float:
+                        return SizeX * 4;
+                    default:
+                        return SizeX;
+                }
+            }
+        }
         public int PaddedStride => Bitmap.GetStridePadded(this.Stride);
 
         public bool LittleEndian
@@ -1749,13 +1809,77 @@ namespace AForge
         {
             get
             {
-                if (this.PixelFormat == PixelFormat.Format24bppRgb || this.PixelFormat == PixelFormat.Format48bppRgb)
-                    return 3;
-                return this.PixelFormat == PixelFormat.Format8bppIndexed || this.PixelFormat == PixelFormat.Format16bppGrayScale ? 1 : 4;
+                switch (PixelFormat)
+                {
+                    case PixelFormat.Indexed:
+                        return 1;
+                    case PixelFormat.Format1bppIndexed:
+                        return 1;
+                    case PixelFormat.Format4bppIndexed:
+                        return 1;
+                    case PixelFormat.Format8bppIndexed:
+                        return 1;
+                    case PixelFormat.Format16bppGrayScale:
+                        return 1;
+                    case PixelFormat.Format24bppRgb:
+                        return 3;
+                    case PixelFormat.Format32bppArgb:
+                        return 4;
+                    case PixelFormat.Format32bppRgb:
+                        return 3;
+                    case PixelFormat.Format32bppPArgb:
+                        return 4;
+                    case PixelFormat.Format48bppRgb:
+                        return 3;
+                    case PixelFormat.Format64bppArgb:
+                        return 4;
+                    case PixelFormat.Format64bppPArgb:
+                        return 4;
+                    case PixelFormat.Float:
+                        return 1;
+                    default:
+                        throw new NotSupportedException("Pixel format not supported.");
+                }
             }
         }
 
-        public int BitsPerPixel => this.PixelFormat == PixelFormat.Format16bppGrayScale || this.PixelFormat == PixelFormat.Format48bppRgb ? 16 : 8;
+        public int BitsPerPixel
+        {
+            get
+            {
+                switch (PixelFormat)
+                {
+                    case PixelFormat.Indexed:
+                        return 8;
+                    case PixelFormat.Format1bppIndexed:
+                        return 1;
+                    case PixelFormat.Format4bppIndexed:
+                        return 4;
+                    case PixelFormat.Format8bppIndexed:
+                        return 8;
+                    case PixelFormat.Format16bppGrayScale:
+                        return 16;
+                    case PixelFormat.Format24bppRgb:
+                        return 8;
+                    case PixelFormat.Format32bppArgb:
+                        return 8;
+                    case PixelFormat.Format32bppRgb:
+                        return 8;
+                    case PixelFormat.Format32bppPArgb:
+                        return 8;
+                    case PixelFormat.Format48bppRgb:
+                        return 16;
+                    case PixelFormat.Format64bppArgb:
+                        return 16;
+                    case PixelFormat.Format64bppPArgb:
+                        return 16;
+                    case PixelFormat.Float:
+                        return 32;
+                    default:
+                        throw new NotSupportedException("Pixel format not supported.");
+                }
+            }
+        }
 
         public PixelFormat PixelFormat
         {
@@ -1823,17 +1947,37 @@ namespace AForge
         {
             get
             {
-                if (this.pixelFormat == PixelFormat.Format8bppIndexed)
-                    return 1;
-                if (this.pixelFormat == PixelFormat.Format16bppGrayScale)
-                    return 2;
-                if (this.pixelFormat == PixelFormat.Format24bppRgb)
-                    return 3;
-                if (this.pixelFormat == PixelFormat.Format32bppRgb || this.pixelFormat == PixelFormat.Format32bppArgb)
-                    return 4;
-                if (this.pixelFormat == PixelFormat.Format48bppRgb)
-                    return 6;
-                throw new InvalidDataException("Bio only supports 8, 16, 24, 32, and 48 bit images.");
+                switch (PixelFormat)
+                {
+                    case PixelFormat.Indexed:
+                        return 1;
+                    case PixelFormat.Format1bppIndexed:
+                        return 1;
+                    case PixelFormat.Format4bppIndexed:
+                        return 1;
+                    case PixelFormat.Format8bppIndexed:
+                        return 1;
+                    case PixelFormat.Format16bppGrayScale:
+                        return 2;
+                    case PixelFormat.Format24bppRgb:
+                        return 3;
+                    case PixelFormat.Format32bppArgb:
+                        return 4;
+                    case PixelFormat.Format32bppRgb:
+                        return 4;
+                    case PixelFormat.Format32bppPArgb:
+                        return 4;
+                    case PixelFormat.Format48bppRgb:
+                        return 6;
+                    case PixelFormat.Format64bppArgb:
+                        return 8;
+                    case PixelFormat.Format64bppPArgb:
+                        return 8;
+                    case PixelFormat.Float:
+                        return 4;
+                    default:
+                        return 1;
+                }
             }
         }
 
@@ -1860,6 +2004,8 @@ namespace AForge
                 case PixelFormat.Format64bppArgb:
                 case PixelFormat.Format64bppPArgb:
                     return 64;
+                case PixelFormat.Float:
+                    return 32;
                 default:
                     throw new NotSupportedException();
             }
@@ -2533,6 +2679,28 @@ namespace AForge
                     }
                     bitmap5.UnlockBits(d5);
                     return bitmap5;
+                case PixelFormat.Float:
+                    Bitmap bf = new Bitmap(w, h, PixelFormat.Format32bppArgb);
+                    Rectangle rf = new Rectangle(0, 0, w, h);
+                    BitmapData df = bf.LockBits(rf, ImageLockMode.ReadWrite, bf.PixelFormat);
+                    for (int y = 0; y < h; ++y)
+                    {
+                        byte* numPtr = (byte*)((IntPtr)(void*)df.Scan0 + y * df.Stride);
+                        int num8 = y * w * 4;
+                        for (int x = 0; x < w; ++x)
+                        {
+                            int num9 = x * 4;
+                            int index = x * 4;
+                            float f = BitConverter.ToSingle(bts, num8 + num9);
+                            byte btr = (byte)(f * byte.MaxValue);
+                            numPtr[index + 0] = btr;
+                            numPtr[index + 1] = btr;
+                            numPtr[index + 2] = btr;
+                            numPtr[index + 3] = byte.MaxValue;
+                        }
+                    }
+                    bf.UnlockBits(df);
+                    return bf;
                 default:
                     throw new NotSupportedException("Pixelformat " + px.ToString() + " is not supported.");
             }
@@ -2631,6 +2799,24 @@ namespace AForge
                     }
                     bitmap4.UnlockBits(d4);
                     return d4.Scan0;
+                case PixelFormat.Float:
+                    Bitmap bitmap6 = new Bitmap(w, h, PixelFormat.Format32bppArgb);
+                    Rectangle r6 = new Rectangle(0, 0, w, h);
+                    BitmapData d = bitmap6.LockBits(r6, ImageLockMode.ReadWrite, bitmap6.PixelFormat);
+                    Statistics[] sts = Statistics.FromBytes(bitmap6);
+                    for (int y = 0; y < h; y++)
+                    {
+                        int num1 = y * d.Stride;
+                        for (int x = 0; x < w; x++)
+                        {
+                            float f = BitConverter.ToSingle(bts, num1 + x);
+                            if ((double)f < sts[0].Min)
+                                f = 0.0f;
+                            int num4 = (int)((double)(f / sts[0].Max) * (double)byte.MaxValue);
+                            bitmap6.SetPixel(x, y, num4);
+                        }
+                    }
+                    return bitmap6.Data;
                 default:
                     throw new NotSupportedException("Pixelformat " + px.ToString() + " is not supported.");
             }
@@ -2897,6 +3083,26 @@ namespace AForge
                     }
                     bitmap5.UnlockBits(d5);
                     return bitmap5;
+                case PixelFormat.Float:
+                    Bitmap bitmap6 = new Bitmap(w, h, PixelFormat.Format32bppArgb);
+                    Rectangle r6 = new Rectangle(0, 0, w, h);
+                    for (int y = 0; y < h; y++)
+                    {
+                        int num1 = y * stride;
+                        for (int x = 0; x < w; x++)
+                        {
+                            float f = BitConverter.ToSingle(bts, (y*stride)+(x*4));
+                            float num3 = f - rr.Min;
+                            if ((double)num3 < 0.0)
+                                num3 = 0.0f;
+                            int num4 = (int)((double)(num3 / rr.Max) * (double)byte.MaxValue);
+                            bitmap6.SetValueRGB(x, y, 3, (ushort)byte.MaxValue);
+                            bitmap6.SetValueRGB(x, y, 2, (ushort)num4);
+                            bitmap6.SetValueRGB(x, y, 1, (ushort)num4);
+                            bitmap6.SetValueRGB(x, y, 0, (ushort)num4);
+                         }
+                    }
+                    return bitmap6;
                 default:
                     throw new InvalidDataException("Bio supports only 8, 16 24, 32, 48 bit images.");
             }
@@ -3063,7 +3269,52 @@ namespace AForge
             if (!interleaved)
             {
                 byte[] numArray = new byte[this.Length];
-                int num1 = this.BitsPerPixel <= 8 ? w : w * 2;
+                int num1 = 0;
+                switch (PixelFormat)
+                {
+                    case PixelFormat.Indexed:
+                        num1 = w; 
+                        break;
+                    case PixelFormat.Format1bppIndexed:
+                        num1 = w;
+                        break;
+                    case PixelFormat.Format4bppIndexed:
+                        num1 = w;
+                        break;
+                    case PixelFormat.Format8bppIndexed:
+                        num1 = w;
+                        break;
+                    case PixelFormat.Format16bppGrayScale:
+                        num1 = w * 2;
+                        break;
+                    case PixelFormat.Format24bppRgb:
+                        num1 = w * 3;
+                        break;
+                    case PixelFormat.Format32bppArgb:
+                        num1 = w * 4;
+                        break;
+                    case PixelFormat.Format32bppRgb:
+                        num1 = w * 4;
+                        break;
+                    case PixelFormat.Format32bppPArgb:
+                        num1 = w * 4;
+                        break;
+                    case PixelFormat.Format48bppRgb:
+                        num1 = w * 6;
+                        break;
+                    case PixelFormat.Format64bppArgb:
+                        num1 = w * 8;
+                        break;
+                    case PixelFormat.Format64bppPArgb:
+                        num1 = w * 8;
+                        break;
+                    case PixelFormat.Float:
+                        num1 = w * 4;
+                        break;
+                    default:
+                        break;
+                }
+
                 if (this.RGBChannelsCount == 1)
                 {
                     for (int index1 = 0; index1 < h; ++index1)
@@ -3225,7 +3476,7 @@ namespace AForge
 
         public void SwitchRedBlue()
         {
-            if (this.PixelFormat == PixelFormat.Format8bppIndexed || this.PixelFormat == PixelFormat.Format16bppGrayScale || this.Bytes == null)
+            if (RGBChannelsCount == 1)
                 return;
             if (this.PixelFormat == PixelFormat.Format24bppRgb)
             {
