@@ -8,6 +8,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Threading.Channels;
 
 namespace AForge
 {
@@ -26,6 +27,7 @@ namespace AForge
         Format64bppArgb,
         Format64bppPArgb,
         Float,
+        Short,
     }
     public enum RotateFlipType
     {
@@ -765,12 +767,24 @@ namespace AForge
         {
             get { return stackValues; }
         }
+        public Statistics()
+        {
+            values = new int[ushort.MaxValue + 1];
+        }
         public Statistics(int bitsPerPixel)
         {
             values = new int[ushort.MaxValue + 1];
             this.bitsPerPixel = bitsPerPixel;
         }
-        public static Statistics[] FromBytes(byte[] bts, int w, int h, int rGBChannels, int BitsPerPixel, int stride)
+        public Statistics(bool val)
+        {
+            values = new int[ushort.MaxValue + 1];
+            if (val)
+                this.bitsPerPixel = 16;
+            else
+                this.bitsPerPixel = 8;
+        }
+        public static Statistics[] FromBytes(byte[] bts, int w, int h, int rGBChannels, int BitsPerPixel, int stride, PixelFormat px)
         {
             Statistics[] sts = new Statistics[rGBChannels];
             for (int i = 0; i < rGBChannels; i++)
@@ -780,68 +794,57 @@ namespace AForge
                 sts[i].min = ushort.MaxValue;
                 sts[i].bitsPerPixel = BitsPerPixel;
             }
-
+            
             float sumr = 0;
             float sumg = 0;
             float sumb = 0;
             float suma = 0;
-            if (BitsPerPixel > 8)
+            if (px == PixelFormat.Format16bppGrayScale || px == PixelFormat.Format48bppRgb)
             {
                 for (int y = 0; y < h; y++)
                 {
                     int BytesPerPixel = BitsPerPixel / 8;
                     for (int x = 0; x < stride; x += BytesPerPixel * rGBChannels)
                     {
-                        if (BitsPerPixel == 16)
+                        if (rGBChannels == 3)
                         {
-                            if (rGBChannels == 3)
-                            {
-                                ushort b = BitConverter.ToUInt16(bts, (y * stride + (x)));
-                                ushort g = BitConverter.ToUInt16(bts, (y * stride + (x + 2)));
-                                ushort r = BitConverter.ToUInt16(bts, (y * stride + (x + 4)));
-                                if (sts[0].max < r)
-                                    sts[0].max = r;
-                                if (sts[0].min > r)
-                                    sts[0].min = r;
-                                sts[0].values[r]++;
-                                sumr += r;
-                                if (sts[1].max < g)
-                                    sts[1].max = g;
-                                if (sts[1].min > g)
-                                    sts[1].min = g;
-                                sts[1].values[g]++;
-                                sumg += g;
-                                if (sts[2].max < b)
-                                    sts[2].max = b;
-                                if (sts[2].min > b)
-                                    sts[2].min = b;
-                                sts[2].values[b]++;
-                                sumb += b;
-                            }
-                            else
-                            {
-                                ushort r = BitConverter.ToUInt16(bts, (y * stride + (x)));
-                                if (sts[0].max < r)
-                                    sts[0].max = r;
-                                if (sts[0].min > r)
-                                    sts[0].min = r;
-                                sts[0].values[r]++;
-                                sumr += r;
-                            }
-                        }
-                        else if(BitsPerPixel == 32)
-                        {
-                            float r = BitConverter.ToSingle(bts, (y * stride + (x)));
+                            ushort b = BitConverter.ToUInt16(bts, (y * stride + (x)));
+                            ushort g = BitConverter.ToUInt16(bts, (y * stride + (x + 2)));
+                            ushort r = BitConverter.ToUInt16(bts, (y * stride + (x + 4)));
                             if (sts[0].max < r)
                                 sts[0].max = r;
                             if (sts[0].min > r)
                                 sts[0].min = r;
+                            sts[0].values[r]++;
+                            sumr += r;
+                            if (sts[1].max < g)
+                                sts[1].max = g;
+                            if (sts[1].min > g)
+                                sts[1].min = g;
+                            sts[1].values[g]++;
+                            sumg += g;
+                            if (sts[2].max < b)
+                                sts[2].max = b;
+                            if (sts[2].min > b)
+                                sts[2].min = b;
+                            sts[2].values[b]++;
+                            sumb += b;
+                        }
+                        else
+                        {
+                            ushort r = BitConverter.ToUInt16(bts, (y * stride + (x)));
+                            if (sts[0].max < r)
+                                sts[0].max = r;
+                            if (sts[0].min > r)
+                                sts[0].min = r;
+                            sts[0].values[r]++;
                             sumr += r;
                         }
                     }
                 }
+
             }
-            else
+            else if (px == PixelFormat.Format8bppIndexed || px == PixelFormat.Format24bppRgb || px == PixelFormat.Format32bppArgb)
             {
                 for (int y = 0; y < h; y++)
                 {
@@ -920,6 +923,38 @@ namespace AForge
                     }
                 }
             }
+            else if (px == PixelFormat.Short)
+            {
+                for (int y = 0; y < h; y++)
+                {
+                    for (int x = 0; x < w; x++)
+                    {
+                        short s = BitConverter.ToInt16(bts, y * stride + x);
+                        if (sts[0].max < s)
+                            sts[0].max = s;
+                        if (sts[0].min > s)
+                            sts[0].min = s;
+                        sumr += s;
+                    }
+                }
+            }
+            else if (px == PixelFormat.Float)
+            {
+                for (int y = 0; y < h; y++)
+                {
+                    for (int x = 0; x < w; x++)
+                    {
+                        float s = BitConverter.ToSingle(bts, y * stride + x);
+                        if (sts[0].max < s)
+                            sts[0].max = s;
+                        if (sts[0].min > s)
+                            sts[0].min = s;
+                        sumr += s;
+                    }
+                }
+            }
+            else
+                throw new NotSupportedException(px + " is not supported.");
 
             sts[0].mean = sumr / (float)(w * h);
             if (rGBChannels > 1)
@@ -954,7 +989,7 @@ namespace AForge
         }
         public static Statistics[] FromBytes(Bitmap bf)
         {
-            return FromBytes(bf.Bytes, bf.SizeX, bf.SizeY, bf.RGBChannelsCount, bf.BitsPerPixel, bf.Stride);
+            return FromBytes(bf.Bytes, bf.SizeX, bf.SizeY, bf.RGBChannelsCount, bf.BitsPerPixel, bf.Stride, bf.PixelFormat);
         }
         public static Dictionary<string, Bitmap> list = new Dictionary<string, Bitmap>();
         public static void FromBytes()
@@ -1010,7 +1045,6 @@ namespace AForge
             }
 
         }
-
         public PointF[] GetPoints(int bin)
         {
             PointF[] pts = new PointF[stackValues.Length];
@@ -1614,38 +1648,26 @@ namespace AForge
         private bool littleEndian = BitConverter.IsLittleEndian;
         private Plane plane;
 
-        public float GetValueRGB(int x, int y, int RGBChannel)
-        {
-            if (this.bytes == null)
-                return 0;
-            if (x >= this.SizeX || x < 0)
-                x = 0;
-            if (y >= this.SizeY || y < 0)
-                y = 0;
-            if (this.BitsPerPixel > 8)
-            {
-                if(BitsPerPixel > 8 && BitsPerPixel < 32)
-                    return BitConverter.ToUInt16(this.bytes, (y * SizeX + x) * 2 * this.RGBChannelsCount + RGBChannel * 2);
-                else
-                    return BitConverter.ToSingle(this.bytes, (y * SizeX + x) * 4 * this.RGBChannelsCount + RGBChannel * 4);
-            }
-            return this.bytes[(y * SizeX + x) * this.RGBChannelsCount + RGBChannel];
-        }
-
         public ColorS GetPixel(int ix, int iy)
         {
-            if (this.isRGB)
-                return new ColorS((ushort)this.GetValueRGB(ix, iy, 0), (ushort)this.GetValueRGB(ix, iy, 1), (ushort)this.GetValueRGB(ix, iy, 2));
-            int valueRgb = (int)this.GetValueRGB(ix, iy, 0);
-            return new ColorS((ushort)valueRgb, (ushort)valueRgb, (ushort)valueRgb);
+            if (RGBChannelsCount == 3 || RGBChannelsCount == 4)
+                return new ColorS((ushort)GetValue(ix, iy, 0), (ushort)GetValue(ix, iy, 1), (ushort)GetValue(ix, iy, 2));
+            else if (RGBChannelsCount == 1)
+                return new ColorS((ushort)GetValue(ix, iy, 0));
+            else
+                throw new NotSupportedException("PixelFormat " + PixelFormat.ToString());
         }
 
         public void SetPixel(int ix, int iy, ColorS col)
         {
-            if (this.isRGB)
-                this.SetColorRGB(ix, iy, col);
-            else
-                this.SetValue(ix, iy, col.R);
+            this.SetValue(ix, iy, 0, col.R);
+            this.SetValue(ix, iy, 1, col.G);
+            this.SetValue(ix, iy, 2, col.B);
+        }
+
+        public void SetPixel(int ix, int iy, ushort f)
+        {
+            this.SetValue(ix, iy, f);
         }
 
         public void SetPixel(int ix, int iy, float f)
@@ -1653,84 +1675,94 @@ namespace AForge
             this.SetValue(ix, iy, f);
         }
 
-        public void SetPixel(int ix, int iy, byte f)
-        {
-            this.SetValue(ix, iy, f);
-        }
-
         public void SetValue(int x, int y, ushort value)
         {
-            int sizeX = this.SizeX;
-            if (this.BitsPerPixel > 8)
+            for (int i = 0; i < RGBChannelsCount; i++)
             {
-                byte[] bts = BitConverter.GetBytes(value);
-                int index = (y * sizeX + x) * bts.Length * this.RGBChannelsCount;
-                for (int i = 0; i < bts.Length; i++)
-                {
-                    this.bytes[index + i] = (byte)bts[i];
-                }
+                SetValue(x, y, i, value);
             }
-            this.bytes[(y * sizeX + x) * this.RGBChannelsCount] = (byte)value;
         }
-
         public void SetValue(int x, int y, float value)
         {
-            int sizeX = this.SizeX;
-            if (this.BitsPerPixel > 8)
+            for (int i = 0; i < RGBChannelsCount; i++)
+            {
+                SetValue(x, y, i, value);
+            }
+        }
+        public void SetValue(int x, int y, int channel, float value)
+        {
+            try
             {
                 byte[] bts = BitConverter.GetBytes(value);
-                int index = (y * sizeX + x) * bts.Length * this.RGBChannelsCount;
+                int index = y * Stride + (x * PixelFormatSize) + (channel * 4);
                 for (int i = 0; i < bts.Length; i++)
                 {
-                    this.bytes[index + i] = (byte)bts[i];
+                    bytes[index + i] = bts[i];
                 }
             }
-            else
-                this.bytes[(y * sizeX + x) * this.RGBChannelsCount] = (byte)value;
-        }
-
-        public void SetValueRGB(int ix, int iy, int RGBChannel, ushort value)
-        {
-            int sizeX = this.SizeX;
-            if (this.BitsPerPixel > 8)
+            catch (Exception e)
             {
-                if (BitsPerPixel == 16)
+                Console.WriteLine(e.Message);
+            }
+
+        }
+        public void SetValue(int x, int y, int channel, ushort value)
+        {
+            try
+            {
+                byte[] bts = BitConverter.GetBytes(value);
+                int index = y * Stride + (x * PixelFormatSize) + (channel * 4);
+                for (int i = 0; i < bts.Length; i++)
                 {
-                    int index = (iy * sizeX + ix) * 2 * this.RGBChannelsCount + RGBChannel * 2;
-                    byte num3 = (byte)((uint)value >> 8);
-                    byte num4 = (byte)((uint)value & (uint)byte.MaxValue);
-                    this.bytes[index] = num3;
-                    this.bytes[index + 1] = num4;
+                    bytes[index + i] = bts[i];
                 }
-                else
-                    throw new NotSupportedException("BitsPerPixel: " + BitsPerPixel + " not supported.");
             }
-            else
-                this.bytes[(iy * sizeX + ix) * this.RGBChannelsCount + RGBChannel] = (byte)value;
-        }
+            catch (Exception e)
+            {
+                Console.WriteLine(e.Message);
+            }
 
-        public void SetColorRGB(int ix, int iy, ColorS value)
+        }
+        public void SetValue(int x, int y, int channel, byte value)
         {
-            int num1 = ix;
-            int num2 = iy;
-            int sizeX = this.SizeX;
-            if (this.BitsPerPixel > 8)
+            try
             {
-                int index = (num2 * sizeX + num1) * 6;
-                this.bytes[index] = value.bytes[0];
-                this.bytes[index + 1] = value.bytes[1];
-                this.bytes[index + 2] = value.bytes[2];
-                this.bytes[index + 3] = value.bytes[3];
-                this.bytes[index + 4] = value.bytes[4];
-                this.bytes[index + 5] = value.bytes[5];
+                int index = y * Stride + (x * PixelFormatSize) + (channel * 4);
+                bytes[index] = value;
             }
-            else
+            catch (Exception e)
             {
-                int index = (num2 * sizeX + num1) * this.RGBChannelsCount;
-                this.bytes[index + 2] = (byte)value.R;
-                this.bytes[index + 1] = (byte)value.G;
-                this.bytes[index] = (byte)value.B;
+                Console.WriteLine(e.Message);
             }
+
+        }
+        public float GetValue(int x, int y, int RGBChannel = 0)
+        {
+            int index;
+            try
+            {
+                index = y * Stride + (x * PixelFormatSize) + RGBChannel;
+                byte[] bts = new byte[4];
+                for (int i = 0; i < bts.Length; i++)
+                {
+                    bts[i] = bytes[index + i];
+                }
+                if (PixelFormat == PixelFormat.Format8bppIndexed)
+                    return bts[0];
+                else if (PixelFormat == PixelFormat.Format16bppGrayScale)
+                    return BitConverter.ToUInt16(bts);
+                else if (PixelFormat == PixelFormat.Float)
+                    return BitConverter.ToSingle(bts);
+                else if (PixelFormat == PixelFormat.Short)
+                    return BitConverter.ToInt16(bts);
+                else if (PixelFormat == PixelFormat.Format24bppRgb || PixelFormat == PixelFormat.Format32bppRgb || PixelFormat == PixelFormat.Format32bppArgb)
+                    return BitConverter.ToInt32(bts);
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e.ToString());
+            }
+            return 0;
         }
 
         public static string CreateID(string filepath, int index)
@@ -1785,6 +1817,8 @@ namespace AForge
                         return SizeX * 8;
                     case PixelFormat.Float:
                         return SizeX * 4;
+                    case PixelFormat.Short: 
+                        return SizeX * 2;
                     default:
                         return SizeX;
                 }
@@ -1837,6 +1871,8 @@ namespace AForge
                         return 4;
                     case PixelFormat.Float:
                         return 1;
+                    case PixelFormat.Short:
+                        return 1;
                     default:
                         throw new NotSupportedException("Pixel format not supported.");
                 }
@@ -1875,6 +1911,8 @@ namespace AForge
                         return 16;
                     case PixelFormat.Float:
                         return 32;
+                    case PixelFormat.Short:
+                        return 16;
                     default:
                         throw new NotSupportedException("Pixel format not supported.");
                 }
@@ -1975,6 +2013,8 @@ namespace AForge
                         return 8;
                     case PixelFormat.Float:
                         return 4;
+                    case PixelFormat.Short:
+                        return 2;
                     default:
                         return 1;
                 }
@@ -2006,6 +2046,8 @@ namespace AForge
                     return 64;
                 case PixelFormat.Float:
                     return 32;
+                case PixelFormat.Short:
+                    return 16;
                 default:
                     throw new NotSupportedException();
             }
@@ -2569,6 +2611,76 @@ namespace AForge
                 this.Bytes = numArray3;
             }
         }
+        public static byte[] RotateFlip(RotateFlipType rot, Bitmap bm)
+        {
+            byte[] numArray1 = new byte[bm.Bytes.Length];
+            int length = Bitmap.GetPixelFormatSize(bm.pixelFormat) / 8;
+            if (rot == RotateFlipType.Rotate180FlipNone || rot == RotateFlipType.Rotate180FlipX || rot == RotateFlipType.Rotate180FlipY || rot == RotateFlipType.Rotate180FlipXY)
+            {
+                for (int index1 = 0; index1 < bm.Bytes.Length; index1 += bm.PixelFormatSize)
+                {
+                    int num = bm.Bytes.Length - bm.PixelFormatSize - index1;
+                    for (int index2 = 0; index2 < bm.PixelFormatSize; ++index2)
+                        numArray1[index1 + index2] = bm.Bytes[num + index2];
+                }
+                return numArray1;
+            }
+            else if (rot == RotateFlipType.Rotate90FlipNone || rot == RotateFlipType.Rotate90FlipX || rot == RotateFlipType.Rotate90FlipY || rot == RotateFlipType.Rotate90FlipXY)
+            {
+                for (int index3 = 0; index3 < bm.Height; ++index3)
+                {
+                    for (int index4 = 0; index4 < bm.Width; ++index4)
+                    {
+                        int sourceIndex = (index3 * bm.Width + index4) * length;
+                        int destinationIndex = ((bm.Width - index4 - 1) * bm.Height + index3) * length;
+                        Array.Copy((Array)bm.Bytes, sourceIndex, (Array)numArray1, destinationIndex, length);
+                    }
+                }
+                return numArray1;
+            }
+            else if (rot == RotateFlipType.Rotate270FlipNone || rot == RotateFlipType.Rotate270FlipX || rot == RotateFlipType.Rotate270FlipY || rot == RotateFlipType.Rotate270FlipXY)
+            {
+                for (int index5 = 0; index5 < bm.Height; ++index5)
+                {
+                    for (int index6 = 0; index6 < bm.Width; ++index6)
+                    {
+                        int sourceIndex = (index5 * bm.Width + index6) * length;
+                        int destinationIndex = (index6 * bm.Height + bm.Height - index5 - 1) * length;
+                        Array.Copy((Array)bm.Bytes, sourceIndex, (Array)numArray1, destinationIndex, length);
+                    }
+                }
+                return numArray1;
+            }
+            if (rot == RotateFlipType.RotateNoneFlipY || rot == RotateFlipType.Rotate90FlipY || rot == RotateFlipType.Rotate180FlipY || rot == RotateFlipType.Rotate270FlipY)
+            {
+                for (int index7 = 0; index7 < bm.Height; ++index7)
+                {
+                    for (int index8 = 0; index8 < bm.Width; ++index8)
+                    {
+                        int sourceIndex = (index7 * bm.Width + index8) * length;
+                        int destinationIndex = (index7 * bm.Width + bm.Width - index8 - 1) * length;
+                        Array.Copy((Array)bm.Bytes, sourceIndex, (Array)numArray1, destinationIndex, length);
+                    }
+                }
+                return numArray1;
+            }
+            else
+            {
+                if (rot != RotateFlipType.RotateNoneFlipX && rot != RotateFlipType.Rotate90FlipX && rot != RotateFlipType.Rotate180FlipX && rot != RotateFlipType.Rotate270FlipX)
+                    return bm.bytes;
+                for (int index9 = 0; index9 < bm.Height; ++index9)
+                {
+                    for (int index10 = 0; index10 < bm.Width; ++index10)
+                    {
+                        int sourceIndex = (index9 * bm.Width + index10) * length;
+                        int destinationIndex = ((bm.Height - index9 - 1) * bm.Width + index10) * length;
+                        Array.Copy((Array)bm.Bytes, sourceIndex, (Array)numArray1, destinationIndex, length);
+                    }
+                }
+                return numArray1;
+            }
+        }
+
 
         public static unsafe Bitmap GetBitmapRGB(int w, int h, PixelFormat px, byte[] bts)
         {
@@ -2691,16 +2803,44 @@ namespace AForge
                         {
                             int num9 = x * 4;
                             int index = x * 4;
-                            float f = BitConverter.ToSingle(bts, num8 + num9);
-                            byte btr = (byte)(f * byte.MaxValue);
-                            numPtr[index + 0] = btr;
-                            numPtr[index + 1] = btr;
-                            numPtr[index + 2] = btr;
+                            byte[] bt = new byte[4];
+                            bt[0] = bts[num8 + num9 + 3];
+                            bt[1] = bts[num8 + num9 + 2];
+                            bt[2] = bts[num8 + num9 + 1];
+                            bt[3] = bts[num8 + num9];
+                            float f = BitConverter.ToSingle(bt, 0) / ushort.MaxValue;
+                            numPtr[index + 0] = (byte)(f * byte.MaxValue);
+                            numPtr[index + 1] = (byte)(f * byte.MaxValue);
+                            numPtr[index + 2] = (byte)(f * byte.MaxValue);
                             numPtr[index + 3] = byte.MaxValue;
                         }
                     }
                     bf.UnlockBits(df);
                     return bf;
+                case PixelFormat.Short:
+                    Bitmap bm = new Bitmap(w, h, PixelFormat.Format32bppArgb);
+                    Rectangle rec = new Rectangle(0, 0, w, h);
+                    BitmapData bd = bm.LockBits(rec, ImageLockMode.ReadWrite, bm.PixelFormat);
+                    for (int y = 0; y < h; ++y)
+                    {
+                        byte* numPtr = (byte*)((IntPtr)(void*)bd.Scan0 + y * bd.Stride);
+                        int num3 = y * w * 2;
+                        for (int x = 0; x < w; ++x)
+                        {
+                            int num4 = x * 2;
+                            int index = x * 4;
+                            byte[] bt = new byte[2];
+                            bt[0] = bts[num3 + num4 + 1];
+                            bt[1] = bts[num3 + num4];
+                            float num5 = ((float)BitConverter.ToInt16(bt, 0) / (float)short.MaxValue) * byte.MaxValue;
+                            numPtr[index] = (byte)num5;
+                            numPtr[index + 1] = (byte)num5;
+                            numPtr[index + 2] = (byte)num5;
+                            numPtr[index + 3] = byte.MaxValue;
+                        }
+                    }
+                    bm.UnlockBits(bd);
+                    return bm;
                 default:
                     throw new NotSupportedException("Pixelformat " + px.ToString() + " is not supported.");
             }
@@ -3096,13 +3236,37 @@ namespace AForge
                             if ((double)num3 < 0.0)
                                 num3 = 0.0f;
                             int num4 = (int)((double)(num3 / rr.Max) * (double)byte.MaxValue);
-                            bitmap6.SetValueRGB(x, y, 3, (ushort)byte.MaxValue);
-                            bitmap6.SetValueRGB(x, y, 2, (ushort)num4);
-                            bitmap6.SetValueRGB(x, y, 1, (ushort)num4);
-                            bitmap6.SetValueRGB(x, y, 0, (ushort)num4);
+                            bitmap6.SetValue(x, y, 3, (ushort)byte.MaxValue);
+                            bitmap6.SetValue(x, y, 2, (ushort)num4);
+                            bitmap6.SetValue(x, y, 1, (ushort)num4);
+                            bitmap6.SetValue(x, y, 0, (ushort)num4);
                          }
                     }
                     return bitmap6;
+                case PixelFormat.Short:
+                    Bitmap bmp = new Bitmap(w, h, PixelFormat.Format32bppArgb);
+                    Rectangle re = new Rectangle(0, 0, w, h);
+                    BitmapData da = bmp.LockBits(re, ImageLockMode.ReadWrite, bmp.PixelFormat);
+                    for (int index4 = 0; index4 < h; ++index4)
+                    {
+                        byte* numPtr = (byte*)((IntPtr)(void*)da.Scan0 + index4 * da.Stride);
+                        int num5 = index4 * stride;
+                        for (int index5 = 0; index5 < w; ++index5)
+                        {
+                            int num6 = index5 * 2;
+                            int index6 = index5 * 4;
+                            float num7 = (float)BitConverter.ToInt16(bts, num5 + num6) - (float)rr.Min;
+                            if ((double)num7 < 0.0)
+                                num7 = 0.0f;
+                            int num8 = (int)((double)(num7 / (float)rr.Max) * (double)byte.MaxValue);
+                            numPtr[index6 + 3] = byte.MaxValue;
+                            numPtr[index6 + 2] = (byte)num8;
+                            numPtr[index6 + 1] = (byte)num8;
+                            numPtr[index6] = (byte)num8;
+                        }
+                    }
+                    bmp.UnlockBits(da);
+                    return bmp;
                 default:
                     throw new InvalidDataException("Bio supports only 8, 16 24, 32, 48 bit images.");
             }
@@ -3311,6 +3475,9 @@ namespace AForge
                     case PixelFormat.Float:
                         num1 = w * 4;
                         break;
+                    case PixelFormat.Short:
+                        num1 = w * 2;
+                        break;
                     default:
                         break;
                 }
@@ -3443,6 +3610,14 @@ namespace AForge
             this.pixelFormat = pixelFormat;
             this.bytes = new byte[stride * height];
             Marshal.Copy(imageData, this.bytes, 0, stride * height);
+            this.stats = Statistics.FromBytes(this);
+        }
+
+        public Bitmap(int width, int height, int stride, PixelFormat pixelFormat, short[] imageData)
+        {
+            this.SizeX = width;
+            this.SizeY = height;
+            this.pixelFormat = pixelFormat;
             this.stats = Statistics.FromBytes(this);
         }
 
@@ -3590,7 +3765,24 @@ namespace AForge
             bitmap.plane = this.Plane;
             return bitmap;
         }
-
+        /*
+        public Bitmap Get16Depth()
+        {
+            Bitmap bm = new Bitmap(SizeX, SizeY, PixelFormat.Format48bppRgb);
+            for (int y = 0; y < SizeY; y++)
+            {
+                for (int x = 0; x < SizeX; x++)
+                {
+                    for (int r = 0; r < RGBChannelsCount; r++)
+                    {
+                        float f = GetValueRGB(x, y, r);
+                        bm.SetValue(x, y, f);
+                    }
+                }
+            }
+            return bm;
+        }
+        */
         public void To8Bit()
         {
             Bitmap bitmap = AForge.Imaging.Image.Convert16bppTo8bpp(this);
@@ -3599,6 +3791,61 @@ namespace AForge
         }
 
         public void To16Bit() => this.Image = (UnmanagedImage)AForge.Imaging.Image.Convert8bppTo16bpp(this);
+
+        public void ToFloat()
+        {
+            Bitmap bm = new Bitmap(SizeX, SizeY, PixelFormat.Float);
+            for (int y = 0; y < SizeY; y++)
+            {
+                for (int x = 0; x < SizeX; x++)
+                {
+                    float f = (float)GetValue(x, y);
+                    bm.SetValue(x, y, f);
+                }
+            }
+            PixelFormat = PixelFormat.Float;
+            Bytes = SwitchEndianness(bm.Bytes);
+            RotateFlip(RotateFlipType.Rotate180FlipNone);
+        }
+
+        public byte[] SwitchEndianness(byte[] bts)
+        {
+            int length = bts.Length;
+            for (int i = 0; i < length / 2; i++)
+            {
+                byte temp = bts[i];
+                bts[i] = bts[length - 1 - i];
+                bts[length - 1 - i] = temp;
+            }
+            return bts;
+        }
+
+        public void SwitchEndianness()
+        {
+            int length = Bytes.Length;
+            for (int i = 0; i < length / 2; i++)
+            {
+                byte temp = Bytes[i];
+                Bytes[i] = Bytes[length - 1 - i];
+                Bytes[length - 1 - i] = temp;
+            }
+        }
+
+        public void ToShort()
+        {
+            Bitmap bm = new Bitmap(SizeX, SizeY, PixelFormat.Short);
+            for (int y = 0; y < SizeY; y++)
+            {
+                for (int x = 0; x < SizeX; x++)
+                {
+                    short f = (short)GetValue(x, y);
+                    bm.SetValue(x, y, f);
+                }
+            }
+            Bytes = SwitchEndianness(bm.Bytes);
+            PixelFormat = PixelFormat.Short;
+            RotateFlip(RotateFlipType.Rotate180FlipNone);
+        }
 
         public void ToRGB()
         {
@@ -3659,7 +3906,7 @@ namespace AForge
             }
         }
 
-        public bool isRGB => this.pixelFormat != PixelFormat.Format8bppIndexed && this.pixelFormat != PixelFormat.Format16bppGrayScale;
+        public bool isRGB => this.pixelFormat != PixelFormat.Format8bppIndexed && this.pixelFormat != PixelFormat.Format16bppGrayScale && this.pixelFormat != PixelFormat.Float && this.pixelFormat != PixelFormat.Short;
 
         public override string ToString() => this.ID;
 
