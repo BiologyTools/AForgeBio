@@ -1743,12 +1743,18 @@ namespace AForge
             {
                 index = y * Stride + (x * PixelFormatSize) + RGBChannel;
                 byte[] bts = new byte[4];
+                if (PixelFormat == PixelFormat.Format16bppGrayScale)
+                    bts = new byte[2];
+                else if (PixelFormat == PixelFormat.Float)
+                    bts = new byte[4];
+                else if (PixelFormat == PixelFormat.Short)
+                    bts = new byte[2];
                 for (int i = 0; i < bts.Length; i++)
                 {
                     bts[i] = bytes[index + i];
                 }
                 if (PixelFormat == PixelFormat.Format8bppIndexed)
-                    return bts[0];
+                    return bytes[index];
                 else if (PixelFormat == PixelFormat.Format16bppGrayScale)
                     return BitConverter.ToUInt16(bts);
                 else if (PixelFormat == PixelFormat.Float)
@@ -1756,7 +1762,7 @@ namespace AForge
                 else if (PixelFormat == PixelFormat.Short)
                     return BitConverter.ToInt16(bts);
                 else if (PixelFormat == PixelFormat.Format24bppRgb || PixelFormat == PixelFormat.Format32bppRgb || PixelFormat == PixelFormat.Format32bppArgb)
-                    return BitConverter.ToInt32(bts);
+                    return bytes[index];
             }
             catch (Exception e)
             {
@@ -3411,6 +3417,58 @@ namespace AForge
             return new Bitmap(r.Width, r.Height, PixelFormat.Format48bppRgb, bts1, this.Coordinate, this.ID);
         }
 
+        public static byte[] ConvertToInterleaved(byte[] nonInterleaved, PixelFormat px)
+        {
+            if (px == PixelFormat.Format24bppRgb)
+            {
+                int numPixels = nonInterleaved.Length / 3;
+                byte[] interleaved = new byte[nonInterleaved.Length];
+
+                for (int i = 0; i < numPixels; i++)
+                {
+                    interleaved[3 * i] = nonInterleaved[i];                // Red
+                    interleaved[3 * i + 1] = nonInterleaved[i + numPixels]; // Green
+                    interleaved[3 * i + 2] = nonInterleaved[i + 2 * numPixels]; // Blue
+                }
+                return interleaved;
+            }
+            else if (px == PixelFormat.Format32bppArgb)
+            {
+                int numPixels = nonInterleaved.Length / 4;
+                byte[] interleaved = new byte[nonInterleaved.Length];
+
+                for (int i = 0; i < numPixels; i++)
+                {
+                    interleaved[4 * i] = nonInterleaved[i];                      // Red
+                    interleaved[4 * i + 1] = nonInterleaved[i + numPixels];      // Green
+                    interleaved[4 * i + 2] = nonInterleaved[i + 2 * numPixels];  // Blue
+                    interleaved[4 * i + 3] = nonInterleaved[i + 3 * numPixels];  // Alpha
+                }
+
+                return interleaved;
+            }
+            else if (px == PixelFormat.Format48bppRgb)
+            {
+                int numPixels = nonInterleaved.Length / 6;
+                byte[] interleaved = new byte[nonInterleaved.Length];
+
+                for (int i = 0; i < numPixels; i++)
+                {
+                    interleaved[6 * i] = nonInterleaved[i * 2];                     // Red high byte
+                    interleaved[6 * i + 1] = nonInterleaved[i * 2 + 1];             // Red low byte
+                    interleaved[6 * i + 2] = nonInterleaved[numPixels * 2 + i * 2];     // Green high byte
+                    interleaved[6 * i + 3] = nonInterleaved[numPixels * 2 + i * 2 + 1]; // Green low byte
+                    interleaved[6 * i + 4] = nonInterleaved[numPixels * 4 + i * 2];     // Blue high byte
+                    interleaved[6 * i + 5] = nonInterleaved[numPixels * 4 + i * 2 + 1]; // Blue low byte
+                }
+                return interleaved;
+            }
+            else if (px == PixelFormat.Float || px == PixelFormat.Short || px == PixelFormat.Format8bppIndexed || px == PixelFormat.Format16bppGrayScale)
+                return nonInterleaved;
+            else
+                throw new NotSupportedException("PixelFormat " + px + " is not supported.");
+        }
+
         private void Initialize(
             string file,
             int w,
@@ -3428,129 +3486,19 @@ namespace AForge
             this.SizeY = h;
             this.pixelFormat = px;
             this.Coordinate = coord;
-            this.Bytes = byts;
             this.Plane = plane;
             if (!interleaved)
             {
-                byte[] numArray = new byte[this.Length];
-                int num1 = 0;
-                switch (PixelFormat)
-                {
-                    case PixelFormat.Indexed:
-                        num1 = w; 
-                        break;
-                    case PixelFormat.Format1bppIndexed:
-                        num1 = w;
-                        break;
-                    case PixelFormat.Format4bppIndexed:
-                        num1 = w;
-                        break;
-                    case PixelFormat.Format8bppIndexed:
-                        num1 = w;
-                        break;
-                    case PixelFormat.Format16bppGrayScale:
-                        num1 = w * 2;
-                        break;
-                    case PixelFormat.Format24bppRgb:
-                        num1 = w * 3;
-                        break;
-                    case PixelFormat.Format32bppArgb:
-                        num1 = w * 4;
-                        break;
-                    case PixelFormat.Format32bppRgb:
-                        num1 = w * 4;
-                        break;
-                    case PixelFormat.Format32bppPArgb:
-                        num1 = w * 4;
-                        break;
-                    case PixelFormat.Format48bppRgb:
-                        num1 = w * 6;
-                        break;
-                    case PixelFormat.Format64bppArgb:
-                        num1 = w * 8;
-                        break;
-                    case PixelFormat.Format64bppPArgb:
-                        num1 = w * 8;
-                        break;
-                    case PixelFormat.Float:
-                        num1 = w * 4;
-                        break;
-                    case PixelFormat.Short:
-                        num1 = w * 2;
-                        break;
-                    default:
-                        break;
-                }
-
-                if (this.RGBChannelsCount == 1)
-                {
-                    for (int index1 = 0; index1 < h; ++index1)
-                    {
-                        int num2 = 0;
-                        int num3 = this.Stride * index1;
-                        int num4 = num1 * index1;
-                        for (int index2 = 0; index2 < num1; ++index2)
-                        {
-                            numArray[num3 + num2] = this.bytes[num4 + index2];
-                            ++num2;
-                        }
-                    }
-                }
-                else if (this.BitsPerPixel > 8)
-                {
-                    int num5 = num1 * h;
-                    int num6 = num1 * h * 2;
-                    for (int index3 = 0; index3 < h; ++index3)
-                    {
-                        int num7 = 0;
-                        int num8 = 0;
-                        int num9 = this.Stride * index3;
-                        int num10 = num1 * index3;
-                        for (int index4 = 0; index4 < num1; index4 += 2)
-                        {
-                            numArray[num9 + num8 + 4] = this.bytes[num10 + index4];
-                            numArray[num9 + num8 + 5] = this.bytes[num10 + index4 + 1];
-                            numArray[num9 + num8 + 2] = this.bytes[num5 + num10 + index4];
-                            numArray[num9 + num8 + 3] = this.bytes[num5 + num10 + index4 + 1];
-                            numArray[num9 + num8] = this.bytes[num6 + num10 + index4];
-                            numArray[num9 + num8 + 1] = this.bytes[num6 + num10 + index4 + 1];
-                            if (num7 == 1)
-                            {
-                                num7 = 0;
-                                num8 += 6;
-                            }
-                            ++num7;
-                        }
-                    }
-                }
-                else
-                {
-                    int num11 = num1 * h;
-                    int num12 = num11 * 2;
-                    for (int index5 = 0; index5 < h; ++index5)
-                    {
-                        int num13 = 0;
-                        int num14 = this.Stride * index5;
-                        int num15 = num1 * index5;
-                        for (int index6 = 0; index6 < num1; ++index6)
-                        {
-                            numArray[num14 + num13] = this.bytes[num15 + index6];
-                            numArray[num14 + num13 + 1] = this.bytes[num11 + num15 + index6];
-                            numArray[num14 + num13 + 2] = this.bytes[num12 + num15 + index6];
-                            num13 += 3;
-                        }
-                    }
-                }
-                this.bytes = numArray;
+                bytes = ConvertToInterleaved(byts, px);
             }
+            else
+                this.Bytes = byts;
             if (!littleEndian)
             {
                 Array.Reverse<byte>(this.Bytes);
                 this.RotateFlip(RotateFlipType.Rotate180FlipNone);
                 SwitchRedBlue();
             }
-            else
-                SwitchRedBlue();
             this.stats = Statistics.FromBytes(this);
         }
 
