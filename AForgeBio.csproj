@@ -6,9 +6,9 @@
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
     <OutputType>Library</OutputType>
-    <Version>1.7.0</Version>
-    <AssemblyVersion>1.7.0</AssemblyVersion>
-    <FileVersion>1.7.0</FileVersion>
+    <Version>1.7.1</Version>
+    <AssemblyVersion>1.7.1</AssemblyVersion>
+    <FileVersion>1.7.1</FileVersion>
     <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
     <PackageId>AForgeBio</PackageId>
     <Title>AForgeBio</Title>
@@ -21,7 +21,7 @@
     <PackageRequireLicenseAcceptance>True</PackageRequireLicenseAcceptance>
     <Platforms>AnyCPU;x64;ARM64</Platforms>
     <PlatformTarget>AnyCPU</PlatformTarget>
-    <PackageReleaseNotes>Support for Float and Short PixelFormats.</PackageReleaseNotes>
+    <PackageReleaseNotes>Bug fix for interleaving pixels.</PackageReleaseNotes>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
