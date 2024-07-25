@@ -1763,6 +1763,11 @@ namespace AForge
                     return BitConverter.ToInt16(bts);
                 else if (PixelFormat == PixelFormat.Format24bppRgb || PixelFormat == PixelFormat.Format32bppRgb || PixelFormat == PixelFormat.Format32bppArgb)
                     return bytes[index];
+                else if (PixelFormat == PixelFormat.Format48bppRgb)
+                {
+                    index = y * Stride + (x * PixelFormatSize) + (RGBChannel * 2);
+                    return BitConverter.ToUInt16(bytes, index);
+                }
             }
             catch (Exception e)
             {
