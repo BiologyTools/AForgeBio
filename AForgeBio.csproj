@@ -6,9 +6,9 @@
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
     <OutputType>Library</OutputType>
-    <Version>1.7.1.1</Version>
-    <AssemblyVersion>1.7.1.1</AssemblyVersion>
-    <FileVersion>1.7.1.1</FileVersion>
+    <Version>1.7.1.2</Version>
+    <AssemblyVersion>1.7.1.2</AssemblyVersion>
+    <FileVersion>1.7.1.2</FileVersion>
     <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
     <PackageId>AForgeBio</PackageId>
     <Title>AForgeBio</Title>
@@ -21,7 +21,7 @@
     <PackageRequireLicenseAcceptance>True</PackageRequireLicenseAcceptance>
     <Platforms>AnyCPU;x64;ARM64</Platforms>
     <PlatformTarget>AnyCPU</PlatformTarget>
-    <PackageReleaseNotes>Bug fix GetPixel 48bpp.</PackageReleaseNotes>
+    <PackageReleaseNotes>Bug fix Get &amp; Set pixel index.</PackageReleaseNotes>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
