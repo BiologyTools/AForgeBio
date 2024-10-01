@@ -1711,7 +1711,7 @@ namespace AForge
             try
             {
                 byte[] bts = BitConverter.GetBytes(value);
-                int index = y * Stride + (x * PixelFormatSize) + (channel * 4);
+                int index = y * Stride + (x * PixelFormatSize) + channel;
                 for (int i = 0; i < bts.Length; i++)
                 {
                     bytes[index + i] = bts[i];
@@ -1727,14 +1727,22 @@ namespace AForge
         {
             try
             {
-                int index = y * Stride + (x * PixelFormatSize) + (channel * 4);
+                // Ensure the channel is within the valid range (0 to PixelFormatSize - 1)
+                if (channel < 0 || channel >= PixelFormatSize)
+                {
+                    throw new ArgumentOutOfRangeException(nameof(channel), "Invalid channel index.");
+                }
+
+                // Calculate the index in the byte array
+                int index = y * Stride + (x * PixelFormatSize) + channel;
+
+                // Set the value at the calculated index
                 bytes[index] = value;
             }
             catch (Exception e)
             {
                 Console.WriteLine(e.Message);
             }
-
         }
         public float GetValue(int x, int y, int RGBChannel = 0)
         {
