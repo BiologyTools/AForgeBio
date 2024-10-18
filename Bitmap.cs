@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Threading.Channels;
 
@@ -1342,7 +1343,7 @@ namespace AForge
             r *= 255;
             g *= 255;
             b *= 255;
-            return AForge.Color.FromArgb(255, (int)r, (int)g, (int)b);
+            return AForge.Color.FromArgb((ushort)r, (ushort)g, (ushort)b);
         }
         public string Name
         {
@@ -1664,6 +1665,21 @@ namespace AForge
             this.SetValue(ix, iy, 1, col.G);
             this.SetValue(ix, iy, 2, col.B);
         }
+        public void SetPixel(int ix, int iy, Color col)
+        {
+            if (BitsPerPixel > 8)
+            {
+                this.SetValue(ix, iy, 0, (ushort)col.R);
+                this.SetValue(ix, iy, 1, (ushort)col.G);
+                this.SetValue(ix, iy, 2, (ushort)col.B);
+            }
+            else
+            {
+                this.SetValue(ix, iy, 0, (byte)col.R);
+                this.SetValue(ix, iy, 1, (byte)col.G);
+                this.SetValue(ix, iy, 2, (byte)col.B);
+            }
+        }
 
         public void SetPixel(int ix, int iy, ushort f)
         {
@@ -1677,17 +1693,11 @@ namespace AForge
 
         public void SetValue(int x, int y, ushort value)
         {
-            for (int i = 0; i < RGBChannelsCount; i++)
-            {
-                SetValue(x, y, i, value);
-            }
+            SetValue(x, y, 0, value);
         }
         public void SetValue(int x, int y, float value)
         {
-            for (int i = 0; i < RGBChannelsCount; i++)
-            {
-                SetValue(x, y, i, value);
-            }
+            SetValue(x, y, 0, value);
         }
         public void SetValue(int x, int y, int channel, float value)
         {
@@ -2338,136 +2348,179 @@ namespace AForge
             levelsLinear1.InBlue = rb;
             return levelsLinear1.Apply(image1);
         }
-
+        /// It takes a buffer, a color, and a range, and returns a bitmap with the color applied to the
+        /// buffer
+        /// 
+        /// @param BufferInfo This is a class that contains the following properties:
+        /// @param IntRange This is a struct that contains a min and max value.
+        /// @param col The color to use for the emission.
+        /// 
+        /// @return A bitmap.
         public static Bitmap GetEmissionBitmap(Bitmap bfs, IntRange rr, Color col)
         {
-            int num1 = bfs.BitsPerPixel <= 8 ? bfs.SizeX * 3 : bfs.SizeX * 3 * 2;
-            float num2 = (float)col.R / (float)byte.MaxValue;
-            float num3 = (float)col.G / (float)byte.MaxValue;
-            float num4 = (float)col.B / (float)byte.MaxValue;
-            int sizeX = bfs.SizeX;
-            int sizeY = bfs.SizeY;
-            byte[] numArray = new byte[sizeY * num1];
+            int stride;
+            if (bfs.BitsPerPixel > 8)
+                stride = bfs.SizeX * 3 * 2;
+            else
+                stride = bfs.SizeX * 3;
+            float r = (col.R / 255f);
+            float g = (col.G / 255f);
+            float b = (col.B / 255f);
+
+            int w = bfs.SizeX;
+            int h = bfs.SizeY;
+            byte[] bts = new byte[h * stride];
+
             if (bfs.BitsPerPixel > 8)
             {
-                for (int index1 = 0; index1 < sizeY; ++index1)
+                for (int y = 0; y < h; y++)
                 {
-                    int num5 = index1 * (sizeX * 2 * 3);
-                    int num6 = index1 * (sizeX * 2);
-                    for (int index2 = 0; index2 < sizeX; ++index2)
+                    //getting the pixels of current row
+                    int rowRGB = y * (w * 2 * 3);
+                    int row16 = y * (w * 2);
+                    //iterating through all the pixels in x direction
+                    for (int x = 0; x < w; x++)
                     {
-                        int num7 = index2 * 6;
-                        int num8 = index2 * 2;
-                        float num9 = (float)BitConverter.ToUInt16(bfs.Bytes, num6 + num8) / (float)ushort.MaxValue * num2;
-                        float num10 = (float)BitConverter.ToUInt16(bfs.Bytes, num6 + num8) / (float)ushort.MaxValue * num3;
-                        double num11 = (double)BitConverter.ToUInt16(bfs.Bytes, num6 + num8) / (double)ushort.MaxValue * (double)num4;
-                        ushort num12 = (ushort)((double)num9 * (double)ushort.MaxValue);
-                        ushort num13 = (ushort)((double)num10 * (double)ushort.MaxValue);
-                        int num14 = (int)(ushort)(num11 * (double)ushort.MaxValue);
-                        byte[] bytes1 = BitConverter.GetBytes(num12);
-                        byte[] bytes2 = BitConverter.GetBytes(num13);
-                        byte[] bytes3 = BitConverter.GetBytes((ushort)num14);
-                        numArray[num5 + num7] = bytes3[0];
-                        numArray[num5 + num7 + 1] = bytes3[1];
-                        numArray[num5 + num7 + 2] = bytes2[0];
-                        numArray[num5 + num7 + 3] = bytes2[1];
-                        numArray[num5 + num7 + 4] = bytes1[0];
-                        numArray[num5 + num7 + 5] = bytes1[1];
+                        int indexRGB = x * 6;
+                        int index16 = x * 2;
+
+                        float rf = (BitConverter.ToUInt16(bfs.Bytes, row16 + index16) / (float)ushort.MaxValue) * r;
+                        float gf = (BitConverter.ToUInt16(bfs.Bytes, row16 + index16) / (float)ushort.MaxValue) * g;
+                        float bf = (BitConverter.ToUInt16(bfs.Bytes, row16 + index16) / (float)ushort.MaxValue) * b;
+                        ushort rs = (ushort)(rf * ushort.MaxValue);
+                        ushort gs = (ushort)(gf * ushort.MaxValue);
+                        ushort bs = (ushort)(bf * ushort.MaxValue);
+                        byte[] rbb = BitConverter.GetBytes(rs);
+                        byte[] gbb = BitConverter.GetBytes(gs);
+                        byte[] bbb = BitConverter.GetBytes(bs);
+                        //R
+                        bts[rowRGB + indexRGB] = rbb[0];
+                        bts[rowRGB + indexRGB + 1] = rbb[1];
+                        //G
+                        bts[rowRGB + indexRGB + 2] = gbb[0];
+                        bts[rowRGB + indexRGB + 3] = gbb[1];
+                        //B
+                        bts[rowRGB + indexRGB + 4] = bbb[0];
+                        bts[rowRGB + indexRGB + 5] = bbb[1];
                     }
                 }
             }
             else
             {
-                for (int index3 = 0; index3 < bfs.SizeY; ++index3)
+                for (int y = 0; y < bfs.SizeY; y++)
                 {
-                    int num15 = index3 * (bfs.SizeX * 3);
-                    int num16 = index3 * bfs.SizeX;
-                    for (int index4 = 0; index4 < bfs.SizeX; ++index4)
+                    //getting the pixels of current row
+                    int rowRGB = y * (bfs.SizeX * 3);
+                    int row8 = y * (bfs.SizeX);
+                    //iterating through all the pixels in x direction
+                    for (int x = 0; x < bfs.SizeX; x++)
                     {
-                        int num17 = index4 * 3;
-                        int num18 = index4;
-                        float num19 = (float)bfs.Bytes[num16 + num18] / (float)byte.MaxValue * num2;
-                        float num20 = (float)bfs.Bytes[num16 + num18] / (float)byte.MaxValue * num3;
-                        double num21 = (double)bfs.Bytes[num16 + num18] / (double)byte.MaxValue * (double)num4;
-                        byte num22 = (byte)((double)num19 * (double)byte.MaxValue);
-                        byte num23 = (byte)((double)num20 * (double)byte.MaxValue);
-                        byte num24 = (byte)(num21 * (double)byte.MaxValue);
-                        numArray[num15 + num17] = num22;
-                        numArray[num15 + num17 + 1] = num23;
-                        numArray[num15 + num17 + 2] = num24;
+                        int indexRGB = x * 3;
+                        int index8 = x;
+
+                        float rf = (bfs.Bytes[row8 + index8] / 255f) * r;
+                        float gf = (bfs.Bytes[row8 + index8] / 255f) * g;
+                        float bf = (bfs.Bytes[row8 + index8] / 255f) * b;
+                        byte rs = (byte)(rf * byte.MaxValue);
+                        byte gs = (byte)(gf * byte.MaxValue);
+                        byte bs = (byte)(bf * byte.MaxValue);
+                        //R
+                        bts[rowRGB + indexRGB] = rs;
+                        //G
+                        bts[rowRGB + indexRGB + 1] = gs;
+                        //B
+                        bts[rowRGB + indexRGB + 2] = bs;
                     }
                 }
             }
-            byte[] bts = new byte[sizeY * (sizeX * 3)];
+            byte[] bt = new byte[h * (w * 3)];
             if (bfs.BitsPerPixel == 8)
             {
-                for (int index5 = 0; index5 < sizeY; ++index5)
+                //iterating through all the pixels in y direction
+                for (int y = 0; y < h; y++)
                 {
-                    int num25 = index5 * sizeX * 3;
-                    for (int index6 = 0; index6 < sizeX; ++index6)
+                    int row = y * stride;
+                    int rowRGB = y * w * 3;
+                    //iterating through all the pixels in x direction
+                    for (int x = 0; x < w; x++)
                     {
-                        int num26 = index6 * 3;
-                        int num27 = index6 * 3;
-                        float num28 = (float)numArray[num25 + num26] - (float)rr.Min;
-                        if ((double)num28 < 0.0)
-                            num28 = 0.0f;
-                        float num29 = num28 / (float)rr.Max;
-                        float num30 = (float)numArray[num25 + num26 + 1] - (float)rr.Min;
-                        if ((double)num30 < 0.0)
-                            num30 = 0.0f;
-                        float num31 = num30 / (float)rr.Max;
-                        float num32 = (float)numArray[num25 + num26 + 2] - (float)rr.Min;
-                        if ((double)num32 < 0.0)
-                            num32 = 0.0f;
-                        float num33 = num32 / (float)rr.Max;
-                        bts[num25 + num27 + 2] = (byte)((double)num29 * (double)byte.MaxValue);
-                        bts[num25 + num27 + 1] = (byte)((double)num31 * (double)byte.MaxValue);
-                        bts[num25 + num27] = (byte)((double)num33 * (double)byte.MaxValue);
+                        int indexRGB = x * 3;
+                        int indexRGBA = x * 3;
+                        float ri = ((float)bts[rowRGB + indexRGB] - rr.Min);
+                        if (ri < 0)
+                            ri = 0;
+                        ri = ri / rr.Max;
+                        float gi = ((float)bts[rowRGB + indexRGB + 1] - rr.Min);
+                        if (gi < 0)
+                            gi = 0;
+                        gi = gi / rr.Max;
+                        float bi = ((float)bts[rowRGB + indexRGB + 2] - rr.Min);
+                        if (bi < 0)
+                            bi = 0;
+                        bi = bi / rr.Max;
+                        bt[rowRGB + indexRGBA + 2] = (byte)(ri * 255);//byte R
+                        bt[rowRGB + indexRGBA + 1] = (byte)(gi * 255);//byte G
+                        bt[rowRGB + indexRGBA] = (byte)(bi * 255);//byte B
                     }
                 }
             }
             else
             {
-                for (int index7 = 0; index7 < sizeY; ++index7)
+                //iterating through all the pixels in y direction
+                for (int y = 0; y < h; y++)
                 {
-                    int num34 = index7 * sizeX * 3 * 2;
-                    int num35 = index7 * sizeX * 3;
-                    for (int index8 = 0; index8 < sizeX; ++index8)
+                    //getting the pixels of current row
+                    int rowRGB = y * w * 3 * 2;
+                    int row = y * w * 3;
+                    //iterating through all the pixels in x direction
+                    for (int x = 0; x < w; x++)
                     {
-                        int num36 = index8 * 6;
-                        int num37 = index8 * 3;
-                        float num38 = (float)BitConverter.ToUInt16(numArray, num34 + num36) - (float)rr.Min;
-                        if ((double)num38 < 0.0)
-                            num38 = 0.0f;
-                        float num39 = num38 / (float)rr.Max;
-                        float num40 = (float)BitConverter.ToUInt16(numArray, num34 + num36 + 2) - (float)rr.Min;
-                        if ((double)num40 < 0.0)
-                            num40 = 0.0f;
-                        float num41 = num40 / (float)rr.Max;
-                        float num42 = (float)BitConverter.ToUInt16(numArray, num34 + num36 + 4) - (float)rr.Min;
-                        if ((double)num42 < 0.0)
-                            num42 = 0.0f;
-                        float num43 = num42 / (float)rr.Max;
-                        bts[num35 + num37 + 2] = (byte)((double)num39 * (double)byte.MaxValue);
-                        bts[num35 + num37 + 1] = (byte)((double)num41 * (double)byte.MaxValue);
-                        bts[num35 + num37] = (byte)((double)num43 * (double)byte.MaxValue);
+                        int indexRGB = x * 6;
+                        int indexRGBA = x * 3;
+                        float ri = ((float)BitConverter.ToUInt16(bts, rowRGB + indexRGB) - rr.Min);
+                        if (ri < 0)
+                            ri = 0;
+                        ri = ri / rr.Max;
+                        float gi = ((float)BitConverter.ToUInt16(bts, rowRGB + indexRGB + 2) - rr.Min);
+                        if (gi < 0)
+                            gi = 0;
+                        gi = gi / rr.Max;
+                        float bi = ((float)BitConverter.ToUInt16(bts, rowRGB + indexRGB + 4) - rr.Min);
+                        if (bi < 0)
+                            bi = 0;
+                        bi = bi / rr.Max;
+                        bt[row + indexRGBA + 2] = (byte)(ri * 255);//byte R
+                        bt[row + indexRGBA + 1] = (byte)(gi * 255);//byte G
+                        bt[row + indexRGBA] = (byte)(bi * 255);//byte B
                     }
                 }
             }
-            return bfs.BitsPerPixel > 8 ? Bitmap.GetBitmap(sizeX, sizeY, sizeX * 3, PixelFormat.Format24bppRgb, bts, bfs.Coordinate) : Bitmap.GetBitmap(sizeX, sizeY, sizeX * 3 * 2, PixelFormat.Format24bppRgb, bts, bfs.Coordinate);
+            bts = null;
+            Bitmap bmp;
+            if (bfs.BitsPerPixel > 8)
+                return GetBitmap(w, h, w * 3, PixelFormat.Format24bppRgb, bt, bfs.Coordinate);
+            else
+                return GetBitmap(w, h, w * 3 * 2, PixelFormat.Format48bppRgb, bt,bfs.Coordinate);
         }
-
+        /// It takes a list of buffer info objects and a list of channel objects and returns a bitmap of
+        /// the emission data
+        /// 
+        /// @param bfs an array of BufferInfo objects, each of which contains a buffer of data (a
+        /// float[]) and the size of the buffer (SizeX and SizeY).
+        /// @param chans an array of Channel objects, which are defined as:
+        /// 
+        /// @return A bitmap of the emission image.
         public static Bitmap GetEmissionBitmap(Bitmap[] bfs, Channel[] chans)
         {
-            Bitmap bitmap = new Bitmap(bfs[0].SizeX, bfs[0].SizeY, PixelFormat.Format24bppRgb);
-            Merge merge = new Merge(bitmap);
-            for (int index = 0; index < chans.Length; ++index)
+            Bitmap bm = new Bitmap(bfs[0].SizeX, bfs[0].SizeY, PixelFormat.Format24bppRgb);
+            Merge m = new Merge(bm);
+            for (int i = 0; i < chans.Length; i++)
             {
-                Bitmap emissionBitmap = Bitmap.GetEmissionBitmap(bfs[index], chans[index].range[0], chans[index].EmissionColor);
-                merge.OverlayImage = emissionBitmap;
-                merge.ApplyInPlace(bitmap);
+                m.OverlayImage = bm;
+                Bitmap b = GetEmissionBitmap(bfs[i], chans[i].range[0], chans[i].EmissionColor);
+                bm = m.Apply(b);
             }
-            return bitmap;
+            return bm;
         }
 
         public static Bitmap RGB8To24(Bitmap[] bfs)
@@ -3483,37 +3536,87 @@ namespace AForge
         }
 
         private void Initialize(
-            string file,
-            int w,
-            int h,
-            PixelFormat px,
-            byte[] byts,
-            ZCT coord,
-            int index,
-            Plane plane,
-            bool littleEndian = true,
-            bool interleaved = true)
+    string file,
+    int w,
+    int h,
+    PixelFormat px,
+    byte[] byts,
+    ZCT coord,
+    int index,
+    Plane plane,
+    bool littleEndian = true,
+    bool interleaved = true)
         {
+            // Generate a unique ID for this bitmap based on file name and index
             this.ID = Bitmap.CreateID(file, index);
+
+            // Set size and pixel format properties
             this.SizeX = w;
             this.SizeY = h;
             this.pixelFormat = px;
             this.Coordinate = coord;
             this.Plane = plane;
+
+            // Handle interleaving if needed
             if (!interleaved)
             {
-                bytes = ConvertToInterleaved(byts, px);
+                // Ensure ConvertToInterleaved is correctly implemented to handle the pixel format
+                this.Bytes = ConvertToInterleaved(byts, px);
             }
             else
+            {
+                // Directly assign the input bytes if already interleaved
                 this.Bytes = byts;
+            }
+
+            // Handle byte order (endianess)
             if (!littleEndian)
             {
-                Array.Reverse<byte>(this.Bytes);
+                // Reverse the byte order in chunks corresponding to the pixel format
+                ReverseByteOrderByPixelFormat();
+
+                // Optionally rotate the image if needed for endianness (though this is unusual)
                 this.RotateFlip(RotateFlipType.Rotate180FlipNone);
-                SwitchRedBlue();
+
+                // Switch red and blue channels if necessary (only for formats like RGB/BGR)
+                SwitchRedBlueIfNecessary();
             }
+
+            // Calculate and assign statistics from the byte data (presumably for image analysis)
             this.stats = Statistics.FromBytes(this);
         }
+
+        // Helper method to reverse byte order based on pixel format
+        private void ReverseByteOrderByPixelFormat()
+        {
+            int bytesPerPixel = GetPixelFormatSize(this.pixelFormat) / 8;
+
+            // Reverse each pixel's byte order
+            for (int i = 0; i < this.Bytes.Length; i += bytesPerPixel)
+            {
+                Array.Reverse(this.Bytes, i, bytesPerPixel);
+            }
+        }
+
+        // Switch red and blue channels if required (e.g., for RGB <-> BGR conversions)
+        private void SwitchRedBlueIfNecessary()
+        {
+            if (this.pixelFormat == PixelFormat.Format24bppRgb ||
+                this.pixelFormat == PixelFormat.Format32bppArgb ||
+                this.pixelFormat == PixelFormat.Format32bppRgb)
+            {
+                int bytesPerPixel = GetPixelFormatSize(this.pixelFormat) / 8;
+
+                for (int i = 0; i < this.Bytes.Length; i += bytesPerPixel)
+                {
+                    // Swap red (R) and blue (B) channels
+                    byte temp = this.Bytes[i];
+                    this.Bytes[i] = this.Bytes[i + 2];
+                    this.Bytes[i + 2] = temp;
+                }
+            }
+        }
+
 
         public Bitmap(string file, int w, int h, PixelFormat px, byte[] bts, ZCT coord, int index) => this.Initialize(file, w, h, px, bts, coord, index, (Plane)null);
 
