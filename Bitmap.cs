@@ -3565,8 +3565,9 @@ namespace AForge
             }
             else
             {
-                // Directly assign the input bytes if already interleaved
                 this.Bytes = byts;
+                // Directly assign the input bytes if already interleaved
+                SwitchRedBlueIfNecessary();
             }
 
             // Handle byte order (endianess)
@@ -3581,7 +3582,19 @@ namespace AForge
                 // Switch red and blue channels if necessary (only for formats like RGB/BGR)
                 SwitchRedBlueIfNecessary();
             }
-
+            if(PixelFormat == PixelFormat.Format32bppArgb)
+            {
+                //Let's check to see if channel 4 is transparent.
+                for (int y = 0; y < SizeY; y++)
+                {
+                    for (int x = 0; x < SizeX; x++)
+                    {
+                        int v = (int)GetValue(x, y, 3);
+                        if (v == 0)
+                            SetValue(x, y, 3, (byte)255);
+                    }
+                }
+            }
             // Calculate and assign statistics from the byte data (presumably for image analysis)
             this.stats = Statistics.FromBytes(this);
         }
