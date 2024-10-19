@@ -1661,17 +1661,26 @@ namespace AForge
 
         public void SetPixel(int ix, int iy, ColorS col)
         {
-            this.SetValue(ix, iy, 0, col.R);
-            this.SetValue(ix, iy, 1, col.G);
-            this.SetValue(ix, iy, 2, col.B);
+            if (BitsPerPixel > 8)
+            {
+                this.SetValue(ix, iy, 0, (ushort)col.R);
+                this.SetValue(ix, iy, 2, (ushort)col.G);
+                this.SetValue(ix, iy, 4, (ushort)col.B);
+            }
+            else
+            {
+                this.SetValue(ix, iy, 0, (byte)col.R);
+                this.SetValue(ix, iy, 1, (byte)col.G);
+                this.SetValue(ix, iy, 2, (byte)col.B);
+            }
         }
         public void SetPixel(int ix, int iy, Color col)
         {
             if (BitsPerPixel > 8)
             {
                 this.SetValue(ix, iy, 0, (ushort)col.R);
-                this.SetValue(ix, iy, 1, (ushort)col.G);
-                this.SetValue(ix, iy, 2, (ushort)col.B);
+                this.SetValue(ix, iy, 2, (ushort)col.G);
+                this.SetValue(ix, iy, 4, (ushort)col.B);
             }
             else
             {
