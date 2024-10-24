@@ -3772,7 +3772,7 @@ namespace AForge
         public byte[] GetSaveBytes(bool littleEndian)
         {
             Bitmap bitmap = this.Copy();
-            if (this.pixelFormat == PixelFormat.Format48bppRgb)
+            if (isRGB)
                 bitmap.SwitchRedBlue();
             if (!littleEndian)
                 bitmap.RotateFlip(RotateFlipType.Rotate180FlipNone);
