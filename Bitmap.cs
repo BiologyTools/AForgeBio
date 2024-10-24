@@ -2255,12 +2255,12 @@ namespace AForge
                     {
                         int num3 = index2 * 6;
                         int num4 = index2 * 2;
-                        byts[num1 + num3] = (byte)0;
-                        byts[num1 + num3 + 1] = (byte)0;
+                        byts[num1 + num3] = bfs[0].Bytes[num2 + num4];
+                        byts[num1 + num3 + 1] = bfs[0].Bytes[num2 + num4 + 1];
                         byts[num1 + num3 + 2] = bfs[1].Bytes[num2 + num4];
                         byts[num1 + num3 + 3] = bfs[1].Bytes[num2 + num4 + 1];
-                        byts[num1 + num3 + 4] = bfs[0].Bytes[num2 + num4];
-                        byts[num1 + num3 + 5] = bfs[0].Bytes[num2 + num4 + 1];
+                        byts[num1 + num3 + 4] = (byte)0;
+                        byts[num1 + num3 + 5] = (byte)0;
                     }
                 }
                 return new Bitmap(bfs[0].ID, bfs[0].SizeX, bfs[0].SizeY, PixelFormat.Format48bppRgb, byts, bfs[0].Coordinate, 0, bfs[0].Plane);
@@ -2274,12 +2274,12 @@ namespace AForge
                 {
                     int num7 = index4 * 6;
                     int num8 = index4 * 2;
-                    byts1[num5 + num7] = bfs[2].Bytes[num6 + num8];
-                    byts1[num5 + num7 + 1] = bfs[2].Bytes[num6 + num8 + 1];
+                    byts1[num5 + num7] = bfs[0].Bytes[num6 + num8];
+                    byts1[num5 + num7 + 1] = bfs[0].Bytes[num6 + num8 + 1];
                     byts1[num5 + num7 + 2] = bfs[1].Bytes[num6 + num8];
                     byts1[num5 + num7 + 3] = bfs[1].Bytes[num6 + num8 + 1];
-                    byts1[num5 + num7 + 4] = bfs[0].Bytes[num6 + num8];
-                    byts1[num5 + num7 + 5] = bfs[0].Bytes[num6 + num8 + 1];
+                    byts1[num5 + num7 + 4] = bfs[2].Bytes[num6 + num8];
+                    byts1[num5 + num7 + 5] = bfs[2].Bytes[num6 + num8 + 1];
                 }
             }
             return new Bitmap(bfs[0].ID, bfs[0].SizeX, bfs[0].SizeY, PixelFormat.Format48bppRgb, byts1, bfs[0].Coordinate, 0, bfs[0].Plane);
@@ -2528,9 +2528,9 @@ namespace AForge
                     {
                         int num3 = index2 * 3;
                         int num4 = index2;
-                        bts[num1 + num3] = (byte)0;
+                        bts[num1 + num3 + 2] = (byte)0;
                         bts[num1 + num3 + 1] = bfs[1].Bytes[num2 + num4];
-                        bts[num1 + num3 + 2] = bfs[0].Bytes[num2 + num4];
+                        bts[num1 + num3] = bfs[0].Bytes[num2 + num4];
                     }
                 }
                 return new Bitmap(bfs[0].ID, bfs[0].SizeX, bfs[0].SizeY, PixelFormat.Format24bppRgb, bts, bfs[0].Coordinate, 0);
@@ -2544,9 +2544,9 @@ namespace AForge
                 {
                     int num7 = index4 * 3;
                     int num8 = index4;
-                    bts1[num5 + num7] = bfs[2].Bytes[num6 + num8];
+                    bts1[num5 + num7 + 2] = bfs[2].Bytes[num6 + num8];
                     bts1[num5 + num7 + 1] = bfs[1].Bytes[num6 + num8];
-                    bts1[num5 + num7 + 2] = bfs[0].Bytes[num6 + num8];
+                    bts1[num5 + num7] = bfs[0].Bytes[num6 + num8];
                 }
             }
             return new Bitmap(bfs[0].ID, bfs[0].SizeX, bfs[0].SizeY, PixelFormat.Format24bppRgb, bts1, bfs[0].Coordinate, 0);
@@ -2563,9 +2563,9 @@ namespace AForge
                 {
                     int num3 = index2 * 3;
                     int num4 = index2;
-                    bts[num1 + num3] = bfs.Bytes[num2 + num4];
-                    bts[num1 + num3 + 1] = bfs.Bytes[num2 + num4];
                     bts[num1 + num3 + 2] = bfs.Bytes[num2 + num4];
+                    bts[num1 + num3 + 1] = bfs.Bytes[num2 + num4];
+                    bts[num1 + num3] = bfs.Bytes[num2 + num4];
                 }
             }
             return new Bitmap(bfs.ID, bfs.SizeX, bfs.SizeY, PixelFormat.Format24bppRgb, bts, bfs.Coordinate, 0);
@@ -3528,16 +3528,16 @@ namespace AForge
         }
 
         private void Initialize(
-    string file,
-    int w,
-    int h,
-    PixelFormat px,
-    byte[] byts,
-    ZCT coord,
-    int index,
-    Plane plane,
-    bool littleEndian = true,
-    bool interleaved = true)
+            string file,
+            int w,
+            int h,
+            PixelFormat px,
+            byte[] byts,
+            ZCT coord,
+            int index,
+            Plane plane,
+            bool littleEndian = true,
+            bool interleaved = true)
         {
             // Generate a unique ID for this bitmap based on file name and index
             this.ID = Bitmap.CreateID(file, index);
@@ -3549,7 +3549,11 @@ namespace AForge
             this.Coordinate = coord;
             this.Plane = plane;
 
-            // Handle interleaving if needed
+            // Validate byte array input
+            if (byts == null || byts.Length == 0)
+                throw new ArgumentException("Byte array cannot be null or empty.");
+
+            // Handle interleaving
             if (!interleaved)
             {
                 // Ensure ConvertToInterleaved is correctly implemented to handle the pixel format
@@ -3559,34 +3563,37 @@ namespace AForge
             {
                 this.Bytes = byts;
                 // Directly assign the input bytes if already interleaved
-                SwitchRedBlueIfNecessary();
             }
 
-            // Handle byte order (endianess)
+            // Handle byte order (endianness)
             if (!littleEndian)
             {
-                // Reverse the byte order in chunks corresponding to the pixel format
+                // Reverse the byte order based on pixel format (ensure it handles formats like 16bpp, 24bpp, 32bpp, etc.)
                 ReverseByteOrderByPixelFormat();
 
-                // Optionally rotate the image if needed for endianness (though this is unusual)
-                this.RotateFlip(RotateFlipType.Rotate180FlipNone);
-
-                // Switch red and blue channels if necessary (only for formats like RGB/BGR)
+                // Switch red and blue channels if necessary (typically for formats like RGB/BGR)
                 SwitchRedBlueIfNecessary();
             }
-            if(PixelFormat == PixelFormat.Format32bppArgb)
+
+            // Special case for 32-bit ARGB format: Check and correct transparency
+            if (px == PixelFormat.Format32bppArgb)
             {
-                //Let's check to see if channel 4 is transparent.
                 for (int y = 0; y < SizeY; y++)
                 {
                     for (int x = 0; x < SizeX; x++)
                     {
-                        int v = (int)GetValue(x, y, 3);
-                        if (v == 0)
+                        // Get the value of the alpha channel (4th byte)
+                        int alpha = (int)GetValue(x, y, 3); // Alpha channel is at index 3 in 32bpp ARGB
+
+                        // If alpha is 0 (fully transparent), set it to 255 (fully opaque)
+                        if (alpha == 0)
+                        {
                             SetValue(x, y, 3, (byte)255);
+                        }
                     }
                 }
             }
+
             // Calculate and assign statistics from the byte data (presumably for image analysis)
             this.stats = Statistics.FromBytes(this);
         }
@@ -3608,7 +3615,8 @@ namespace AForge
         {
             if (this.pixelFormat == PixelFormat.Format24bppRgb ||
                 this.pixelFormat == PixelFormat.Format32bppArgb ||
-                this.pixelFormat == PixelFormat.Format32bppRgb)
+                this.pixelFormat == PixelFormat.Format32bppRgb || 
+                this.pixelFormat == PixelFormat.Format48bppRgb)
             {
                 int bytesPerPixel = GetPixelFormatSize(this.pixelFormat) / 8;
 
@@ -3772,8 +3780,6 @@ namespace AForge
         public byte[] GetSaveBytes(bool littleEndian)
         {
             Bitmap bitmap = this.Copy();
-            if (isRGB)
-                bitmap.SwitchRedBlue();
             if (!littleEndian)
                 bitmap.RotateFlip(RotateFlipType.Rotate180FlipNone);
             int length = this.bytes.Length;
@@ -3855,7 +3861,6 @@ namespace AForge
         public void To8Bit()
         {
             Bitmap bitmap = AForge.Imaging.Image.Convert16bppTo8bpp(this);
-            bitmap.RotateFlip(RotateFlipType.Rotate180FlipNone);
             this.Image = (UnmanagedImage)bitmap;
         }
 
