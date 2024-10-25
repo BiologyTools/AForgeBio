@@ -3780,14 +3780,12 @@ namespace AForge
         public byte[] GetSaveBytes(bool littleEndian)
         {
             Bitmap bitmap = this.Copy();
+            bitmap.SwitchRedBlue();
             if (!littleEndian)
                 bitmap.RotateFlip(RotateFlipType.Rotate180FlipNone);
-            int length = this.bytes.Length;
-            byte[] numArray = new byte[length];
-            Marshal.Copy(bitmap.Data, numArray, 0, length);
             if (!littleEndian)
-                Array.Reverse<byte>(numArray);
-            return numArray;
+                Array.Reverse<byte>(bitmap.Bytes);
+            return bitmap.Bytes;
         }
 
         public static byte[] GetBuffer(Bitmap bmp, int stride)
