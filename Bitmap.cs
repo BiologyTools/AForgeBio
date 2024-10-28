@@ -3,6 +3,7 @@ using AForge.Imaging;
 using AForge.Imaging.Filters;
 using Cairo;
 using Gtk;
+using Pango;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -3435,7 +3436,7 @@ namespace AForge
             int w,
             int h,
             PixelFormat px,
-            byte[] byts,
+            byte[] bytes,
             ZCT coord,
             int index,
             Plane plane,
@@ -3453,29 +3454,32 @@ namespace AForge
             this.Plane = plane;
 
             // Validate byte array input
-            if (byts == null || byts.Length == 0)
-                throw new ArgumentException("Byte array cannot be null or empty.");
+            if (bytes == null || bytes.Length == 0)
+            {
+                throw new ArgumentException("Byte array cannot be null or empty.", nameof(bytes));
+            }
 
-            // Handle interleaving
+            // Handle interleaving: Convert to interleaved format if necessary
             if (!interleaved)
             {
-                // Ensure ConvertToInterleaved is correctly implemented to handle the pixel format
-                this.Bytes = ConvertToInterleaved(byts, px);
+                this.Bytes = ConvertToInterleaved(bytes, pixelFormat);
             }
             else
             {
-                this.Bytes = byts;
-                // Directly assign the input bytes if already interleaved
+                this.Bytes = bytes;
             }
 
             // Handle byte order (endianness)
             if (!littleEndian)
             {
-                // Reverse the byte order based on pixel format (ensure it handles formats like 16bpp, 24bpp, 32bpp, etc.)
+                // Reverse the byte order according to pixel format
                 ReverseByteOrderByPixelFormat();
 
-                // Switch red and blue channels if necessary (typically for formats like RGB/BGR)
-                SwitchRedBlueIfNecessary();
+                // Switch red and blue channels if necessary for formats like RGB/BGR
+                if (isRGB)
+                {
+                    SwitchRedBlue();
+                }
             }
 
             // Special case for 32-bit ARGB format: Check and correct transparency
@@ -3512,27 +3516,6 @@ namespace AForge
                 Array.Reverse(this.Bytes, i, bytesPerPixel);
             }
         }
-
-        // Switch red and blue channels if required (e.g., for RGB <-> BGR conversions)
-        private void SwitchRedBlueIfNecessary()
-        {
-            if (this.pixelFormat == PixelFormat.Format24bppRgb ||
-                this.pixelFormat == PixelFormat.Format32bppArgb ||
-                this.pixelFormat == PixelFormat.Format32bppRgb || 
-                this.pixelFormat == PixelFormat.Format48bppRgb)
-            {
-                int bytesPerPixel = GetPixelFormatSize(this.pixelFormat) / 8;
-
-                for (int i = 0; i < this.Bytes.Length; i += bytesPerPixel)
-                {
-                    // Swap red (R) and blue (B) channels
-                    byte temp = this.Bytes[i];
-                    this.Bytes[i] = this.Bytes[i + 2];
-                    this.Bytes[i + 2] = temp;
-                }
-            }
-        }
-
 
         public Bitmap(string file, int w, int h, PixelFormat px, byte[] bts, ZCT coord, int index) => this.Initialize(file, w, h, px, bts, coord, index, (Plane)null);
 
@@ -3872,7 +3855,7 @@ namespace AForge
 
         public bool isRGB => this.pixelFormat != PixelFormat.Format8bppIndexed && this.pixelFormat != PixelFormat.Format16bppGrayScale && this.pixelFormat != PixelFormat.Float && this.pixelFormat != PixelFormat.Short;
 
-        public override string ToString() => this.ID;
+        public override string ToString() => System.IO.Path.GetFileName(File) + ", " + Width + ", " + Height;
 
         public void Dispose()
         {
