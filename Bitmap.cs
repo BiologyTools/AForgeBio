@@ -1,12 +1,15 @@
 ﻿using AForge;
 using AForge.Imaging;
 using AForge.Imaging.Filters;
+using Cairo;
+using Gtk;
 using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Threading.Channels;
@@ -713,6 +716,13 @@ namespace AForge
         private float meansum = 0;
         private float[] stackValues = new float[ushort.MaxValue];
         private int count = 0;
+        public IntRange Range
+        {
+            get
+            {
+                return new IntRange((int)Min, (int)Max);
+            }
+        }
         public float Min
         {
             get { return min; }
@@ -785,209 +795,172 @@ namespace AForge
             else
                 this.bitsPerPixel = 8;
         }
-        public static Statistics[] FromBytes(byte[] bts, int w, int h, int rGBChannels, int BitsPerPixel, int stride, PixelFormat px)
+        public static Statistics[] FromBytes(byte[] bytes, int width, int height, int rgbChannels, int bitsPerPixel, int stride, PixelFormat pixelFormat)
         {
-            Statistics[] sts = new Statistics[rGBChannels];
-            for (int i = 0; i < rGBChannels; i++)
-            {
-                sts[i] = new Statistics(BitsPerPixel);
-                sts[i].max = ushort.MinValue;
-                sts[i].min = ushort.MaxValue;
-                sts[i].bitsPerPixel = BitsPerPixel;
-            }
-            
-            float sumr = 0;
-            float sumg = 0;
-            float sumb = 0;
-            float suma = 0;
-            if (px == PixelFormat.Format16bppGrayScale || px == PixelFormat.Format48bppRgb)
-            {
-                for (int y = 0; y < h; y++)
-                {
-                    int BytesPerPixel = BitsPerPixel / 8;
-                    for (int x = 0; x < stride; x += BytesPerPixel * rGBChannels)
-                    {
-                        if (rGBChannels == 3)
-                        {
-                            ushort b = BitConverter.ToUInt16(bts, (y * stride + (x)));
-                            ushort g = BitConverter.ToUInt16(bts, (y * stride + (x + 2)));
-                            ushort r = BitConverter.ToUInt16(bts, (y * stride + (x + 4)));
-                            if (sts[0].max < r)
-                                sts[0].max = r;
-                            if (sts[0].min > r)
-                                sts[0].min = r;
-                            sts[0].values[r]++;
-                            sumr += r;
-                            if (sts[1].max < g)
-                                sts[1].max = g;
-                            if (sts[1].min > g)
-                                sts[1].min = g;
-                            sts[1].values[g]++;
-                            sumg += g;
-                            if (sts[2].max < b)
-                                sts[2].max = b;
-                            if (sts[2].min > b)
-                                sts[2].min = b;
-                            sts[2].values[b]++;
-                            sumb += b;
-                        }
-                        else
-                        {
-                            ushort r = BitConverter.ToUInt16(bts, (y * stride + (x)));
-                            if (sts[0].max < r)
-                                sts[0].max = r;
-                            if (sts[0].min > r)
-                                sts[0].min = r;
-                            sts[0].values[r]++;
-                            sumr += r;
-                        }
-                    }
-                }
+            Statistics[] stats = new Statistics[rgbChannels];
 
-            }
-            else if (px == PixelFormat.Format8bppIndexed || px == PixelFormat.Format24bppRgb || px == PixelFormat.Format32bppArgb)
+            // Initialize each channel's statistics
+            for (int i = 0; i < rgbChannels; i++)
             {
-                for (int y = 0; y < h; y++)
+                stats[i] = new Statistics(bitsPerPixel)
                 {
-                    for (int x = 0; x < w; x++)
-                    {
-                        if (rGBChannels > 1)
-                        {
-                            byte b = bts[y * stride + x];
-                            byte g = bts[y * stride + (x + 1)];
-                            byte r = bts[y * stride + (x + 2)];
-                            byte a = 0;
-                            if (rGBChannels == 4)
-                            {
-                                a = bts[y * stride + x];
-                                b = bts[y * stride + (x + 1)];
-                                g = bts[y * stride + (x + 2)];
-                                r = bts[y * stride + (x + 3)];
+                    max = ushort.MinValue,
+                    min = ushort.MaxValue,
+                    bitsPerPixel = bitsPerPixel
+                };
+            }
 
-                                if (sts[0].max < a)
-                                    sts[0].max = a;
-                                if (sts[0].min > a)
-                                    sts[0].min = a;
-                                sts[0].values[a]++;
-                                suma += a;
-                                if (sts[1].max < b)
-                                    sts[1].max = b;
-                                if (sts[1].min > b)
-                                    sts[1].min = b;
-                                sts[1].values[b]++;
-                                sumb += b;
-                                if (sts[2].max < g)
-                                    sts[2].max = g;
-                                if (sts[2].min > g)
-                                    sts[2].min = g;
-                                sts[2].values[g]++;
-                                sumg += g;
-                                if (sts[3].max < r)
-                                    sts[3].max = r;
-                                if (sts[3].min > r)
-                                    sts[3].min = r;
-                                sts[3].values[r]++;
-                                sumr += r;
-                            }
-                            else
+            // Sum values to compute mean
+            float sumR = 0, sumG = 0, sumB = 0, sumA = 0;
+
+            // Process different pixel formats
+            switch (pixelFormat)
+            {
+                case PixelFormat.Format16bppGrayScale:
+                case PixelFormat.Format48bppRgb:
+                    {
+                        int bytesPerChannel = bitsPerPixel / 8;
+                        for (int y = 0; y < height; y++)
+                        {
+                            for (int x = 0; x < stride; x += bytesPerChannel * rgbChannels)
                             {
-                                if (sts[0].max < r)
-                                    sts[0].max = r;
-                                if (sts[0].min > r)
-                                    sts[0].min = r;
-                                sts[0].values[r]++;
-                                sumr += r;
-                                if (sts[1].max < g)
-                                    sts[1].max = g;
-                                if (sts[1].min > g)
-                                    sts[1].min = g;
-                                sts[1].values[g]++;
-                                sumg += g;
-                                if (sts[2].max < b)
-                                    sts[2].max = b;
-                                if (sts[2].min > b)
-                                    sts[2].min = b;
-                                sts[2].values[b]++;
-                                sumb += b;
+                                if (rgbChannels == 3) // RGB
+                                {
+                                    ushort b = BitConverter.ToUInt16(bytes, y * stride + x);
+                                    ushort g = BitConverter.ToUInt16(bytes, y * stride + x + 2);
+                                    ushort r = BitConverter.ToUInt16(bytes, y * stride + x + 4);
+
+                                    UpdateStatistics(stats[0], r, ref sumR);
+                                    UpdateStatistics(stats[1], g, ref sumG);
+                                    UpdateStatistics(stats[2], b, ref sumB);
+                                }
+                                else // Grayscale
+                                {
+                                    ushort gray = BitConverter.ToUInt16(bytes, y * stride + x);
+                                    UpdateStatistics(stats[0], gray, ref sumR);
+                                }
                             }
                         }
-                        else
+                    }
+                    break;
+
+                case PixelFormat.Format8bppIndexed:
+                case PixelFormat.Format24bppRgb:
+                case PixelFormat.Format32bppArgb:
+                    {
+                        for (int y = 0; y < height; y++)
                         {
-                            byte r = bts[y * stride + x];
-                            if (sts[0].max < r)
-                                sts[0].max = r;
-                            if (sts[0].min > r)
-                                sts[0].min = r;
-                            sts[0].values[r]++;
-                            sumr += r;
+                            for (int x = 0; x < width * rgbChannels; x += rgbChannels)
+                            {
+                                if (rgbChannels == 4) // ARGB
+                                {
+                                    byte a = bytes[y * stride + x];
+                                    byte b = bytes[y * stride + x + 1];
+                                    byte g = bytes[y * stride + x + 2];
+                                    byte r = bytes[y * stride + x + 3];
+
+                                    UpdateStatistics(stats[0], a, ref sumA);
+                                    UpdateStatistics(stats[1], b, ref sumB);
+                                    UpdateStatistics(stats[2], g, ref sumG);
+                                    UpdateStatistics(stats[3], r, ref sumR);
+                                }
+                                else if (rgbChannels == 3) // RGB
+                                {
+                                    byte b = bytes[y * stride + x];
+                                    byte g = bytes[y * stride + x + 1];
+                                    byte r = bytes[y * stride + x + 2];
+
+                                    UpdateStatistics(stats[0], r, ref sumR);
+                                    UpdateStatistics(stats[1], g, ref sumG);
+                                    UpdateStatistics(stats[2], b, ref sumB);
+                                }
+                                else // Grayscale
+                                {
+                                    byte gray = bytes[y * stride + x];
+                                    UpdateStatistics(stats[0], gray, ref sumR);
+                                }
+                            }
                         }
                     }
-                }
-            }
-            else if (px == PixelFormat.Short)
-            {
-                for (int y = 0; y < h; y++)
-                {
-                    for (int x = 0; x < w; x++)
-                    {
-                        short s = BitConverter.ToInt16(bts, y * stride + x);
-                        if (sts[0].max < s)
-                            sts[0].max = s;
-                        if (sts[0].min > s)
-                            sts[0].min = s;
-                        sumr += s;
-                    }
-                }
-            }
-            else if (px == PixelFormat.Float)
-            {
-                for (int y = 0; y < h; y++)
-                {
-                    for (int x = 0; x < w; x++)
-                    {
-                        float s = BitConverter.ToSingle(bts, y * stride + x);
-                        if (sts[0].max < s)
-                            sts[0].max = s;
-                        if (sts[0].min > s)
-                            sts[0].min = s;
-                        sumr += s;
-                    }
-                }
-            }
-            else
-                throw new NotSupportedException(px + " is not supported.");
+                    break;
 
-            sts[0].mean = sumr / (float)(w * h);
-            if (rGBChannels > 1)
-            {
-                sts[1].mean = sumg / (float)(w * h);
-                sts[2].mean = sumb / (float)(w * h);
-                if (rGBChannels == 4)
-                    sts[3].mean = suma / (float)(w * h);
+                case PixelFormat.Short:
+                    for (int y = 0; y < height; y++)
+                    {
+                        for (int x = 0; x < width; x++)
+                        {
+                            short value = BitConverter.ToInt16(bytes, y * stride + x);
+                            UpdateStatistics(stats[0], value, ref sumR);
+                        }
+                    }
+                    break;
+
+                case PixelFormat.Float:
+                    for (int y = 0; y < height; y++)
+                    {
+                        for (int x = 0; x < width; x++)
+                        {
+                            float value = BitConverter.ToSingle(bytes, y * stride + x);
+                            UpdateStatistics(stats[0], value, ref sumR);
+                        }
+                    }
+                    break;
+
+                default:
+                    throw new NotSupportedException($"{pixelFormat} is not supported.");
             }
 
-            for (int i = 0; i < sts[0].values.Length; i++)
+            // Calculate mean values
+            stats[0].mean = sumR / (width * height);
+            if (rgbChannels > 1)
             {
-                if (sts[0].median < sts[0].values[i])
-                    sts[0].median = sts[0].values[i];
+                stats[1].mean = sumG / (width * height);
+                stats[2].mean = sumB / (width * height);
+                if (rgbChannels == 4) stats[3].mean = sumA / (width * height);
             }
-            if (rGBChannels > 1)
-            {
-                for (int i = 0; i < sts[1].values.Length; i++)
-                {
-                    if (sts[1].median < sts[1].values[i])
-                        sts[1].median = sts[1].values[i];
-                    if (sts[2].median < sts[2].values[i])
-                        sts[2].median = sts[2].values[i];
-                    if (rGBChannels == 4)
-                    {
-                        if (sts[3].median < sts[3].values[i])
-                            sts[3].median = sts[3].values[i];
-                    }
-                }
-            }
-            return sts;
+
+            // Calculate median
+            CalculateMedian(stats, rgbChannels);
+
+            return stats;
         }
+
+        /// <summary>
+        /// Updates the min, max, and sum of statistics for a given channel.
+        /// </summary>
+        private static void UpdateStatistics(Statistics stat, dynamic value, ref float sum)
+        {
+            if (stat.max < value) stat.max = value;
+            if (stat.min > value) stat.min = value;
+            stat.values[value]++;
+            sum += value;
+        }
+
+        /// <summary>
+        /// Calculates median values for each channel in statistics array.
+        /// </summary>
+        private static void CalculateMedian(Statistics[] stats, int rgbChannels)
+        {
+            for (int i = 0; i < rgbChannels; i++)
+            {
+                int medianValue = 0;
+                int totalCount = stats[i].values.Sum();
+
+                // Find median by cumulative count
+                int cumulativeCount = 0;
+                for (int j = 0; j < stats[i].values.Length; j++)
+                {
+                    cumulativeCount += stats[i].values[j];
+                    if (cumulativeCount >= totalCount / 2)
+                    {
+                        medianValue = j;
+                        break;
+                    }
+                }
+                stats[i].median = medianValue;
+            }
+        }
+
         public static Statistics[] FromBytes(Bitmap bf)
         {
             return FromBytes(bf.Bytes, bf.SizeX, bf.SizeY, bf.RGBChannelsCount, bf.BitsPerPixel, bf.Stride, bf.PixelFormat);
@@ -1067,6 +1040,7 @@ namespace AForge
             values = null;
         }
     }
+
     public class Plane
     {
         private double exposure;
@@ -1870,9 +1844,34 @@ namespace AForge
             set => this.littleEndian = value;
         }
 
-        public Gdk.Pixbuf Pixbuf 
-        { 
-            get { return new Gdk.Pixbuf(Bytes, RGBChannelsCount > 3, BitsPerPixel, SizeX, SizeY, Stride); }
+        public Gdk.Pixbuf Pixbuf
+        {
+            get
+            {
+                // Create the Pixbuf object with the interleaved data
+                Gdk.Pixbuf pixbuf = new Gdk.Pixbuf(
+                    RGBBytes,
+                    true,
+                    8,
+                    SizeX,
+                    SizeY,
+                    SizeX * 4
+                );
+                return pixbuf;
+            }
+        }
+
+        public void BinarizeOtsu()
+        {
+            Bitmap bm;
+            OtsuThreshold otsu = new OtsuThreshold();
+            ExtractChannel ch = new ExtractChannel(0);
+            bm = ch.Apply(this.ImageRGB);
+            otsu.ApplyInPlace(bm);
+            this.Bytes = bm.bytes;
+            this.PixelFormat = bm.PixelFormat;
+            this.SizeX = bm.SizeX;
+            this.SizeY = bm.SizeY;
         }
 
         public long Length => (long)this.bytes.Length;
@@ -1980,11 +1979,11 @@ namespace AForge
             }
             set
             {
-                this.bytes = new byte[value.Stride * value.Height];
-                Marshal.Copy(value.ImageData, this.Bytes, 0, value.Stride * value.Height);
                 this.PixelFormat = value.PixelFormat;
                 this.SizeX = value.Width;
                 this.SizeY = value.Height;
+                this.bytes = new byte[this.PaddedStride * value.Height];
+                Marshal.Copy(value.ImageData, this.Bytes, 0, this.PaddedStride * value.Height);
             }
         }
 
@@ -2159,7 +2158,7 @@ namespace AForge
             if (stridePadded == stride)
                 return bts;
             byte[] numArray = new byte[stridePadded * h];
-            if (px == PixelFormat.Format24bppRgb || px == PixelFormat.Format32bppArgb || px == PixelFormat.Format32bppRgb)
+            if (px == PixelFormat.Format24bppRgb || px == PixelFormat.Format32bppArgb || px == PixelFormat.Format32bppRgb || px == PixelFormat.Format8bppIndexed)
             {
                 for (int index1 = 0; index1 < h; ++index1)
                 {
@@ -3340,191 +3339,79 @@ namespace AForge
 
         public void Crop(Rectangle r)
         {
-            if (this.BitsPerPixel > 8)
+            int bytesPerChannel = this.BitsPerPixel / 8;
+            int channels = this.RGBChannelsCount;
+
+            // Determine the number of bytes per pixel based on bits per pixel and channel count
+            int bytesPerPixel = bytesPerChannel * channels;
+            int croppedStride = r.Width * bytesPerPixel;
+            int stride = this.Stride;
+            byte[] croppedBytes = new byte[croppedStride * r.Height];
+
+            for (int y = 0; y < r.Height; y++)
             {
-                if (this.RGBChannelsCount == 1)
+                for (int x = 0; x < r.Width; x++)
                 {
-                    int num1 = 2;
-                    int num2 = r.Width * num1;
-                    int stride = this.Stride;
-                    byte[] numArray = new byte[num2 * r.Height];
-                    for (int index1 = 0; index1 < r.Height; ++index1)
-                    {
-                        for (int index2 = 0; index2 < num2; index2 += num1)
-                        {
-                            int index3 = index1 * num2 + index2;
-                            int index4 = (index1 + r.Y) * stride + (index2 + r.X * num1);
-                            numArray[index3] = this.bytes[index4];
-                            numArray[index3 + 1] = this.bytes[index4 + 1];
-                        }
-                    }
-                    this.bytes = numArray;
-                }
-                else
-                {
-                    int num3 = 6;
-                    int num4 = r.Width * num3;
-                    int stride = this.Stride;
-                    byte[] numArray = new byte[num4 * r.Height];
-                    for (int index5 = 0; index5 < r.Height; ++index5)
-                    {
-                        for (int index6 = 0; index6 < num4; index6 += num3)
-                        {
-                            int index7 = index5 * num4 + index6;
-                            int index8 = (index5 + r.Y) * stride + (index6 + r.X * num3);
-                            numArray[index7] = this.bytes[index8];
-                            numArray[index7 + 1] = this.bytes[index8 + 1];
-                            numArray[index7 + 2] = this.bytes[index8 + 2];
-                            numArray[index7 + 3] = this.bytes[index8 + 3];
-                            numArray[index7 + 4] = this.bytes[index8 + 4];
-                            numArray[index7 + 5] = this.bytes[index8 + 5];
-                        }
-                    }
-                    this.bytes = numArray;
+                    int destIndex = y * croppedStride + x * bytesPerPixel;
+                    int srcIndex = (y + r.Y) * stride + (x + r.X) * bytesPerPixel;
+
+                    // Copy the correct number of bytes per channel
+                    Array.Copy(this.bytes, srcIndex, croppedBytes, destIndex, bytesPerPixel);
                 }
             }
-            else
-                this.Image = new AForge.Imaging.Filters.Crop(r).Apply(this.Image);
+
+            // Update the image bytes and width/height based on the crop region
+            this.bytes = croppedBytes;
             this.SizeX = r.Width;
             this.SizeY = r.Height;
         }
-
-        public UnmanagedImage GetCropBitmap(Rectangle r)
-        {
-            if (this.BitsPerPixel <= 8)
-                return new AForge.Imaging.Filters.Crop(r).Apply(this.Image);
-            if (this.RGBChannelsCount == 1)
-            {
-                int num = 2;
-                int stride1 = r.Width * num;
-                int stride2 = this.Stride;
-                byte[] arr = new byte[stride1 * r.Height];
-                for (int index1 = 0; index1 < r.Height; ++index1)
-                {
-                    for (int index2 = 0; index2 < stride1; index2 += num)
-                    {
-                        int index3 = (index1 * stride1 + index2) * this.RGBChannelsCount;
-                        int index4 = ((index1 + r.Y) * stride2 + (index2 + r.X * num)) * this.RGBChannelsCount;
-                        arr[index3] = this.bytes[index4];
-                        arr[index3 + 1] = this.bytes[index4 + 1];
-                    }
-                }
-                return new UnmanagedImage(Marshal.UnsafeAddrOfPinnedArrayElement<byte>(arr, 0), r.Width, r.Height, stride1, PixelFormat.Format16bppGrayScale);
-            }
-            int num1 = 6;
-            int stride3 = r.Width * num1;
-            int stride4 = this.Stride;
-            byte[] arr1 = new byte[stride3 * r.Height];
-            for (int index5 = 0; index5 < r.Height; ++index5)
-            {
-                for (int index6 = 0; index6 < stride3; index6 += num1)
-                {
-                    int index7 = index5 * stride3 + index6;
-                    int index8 = (index5 + r.Y) * stride4 + (index6 + r.X * num1);
-                    arr1[index7] = this.bytes[index8];
-                    arr1[index7 + 1] = this.bytes[index8 + 1];
-                    arr1[index7 + 2] = this.bytes[index8 + 2];
-                    arr1[index7 + 3] = this.bytes[index8 + 3];
-                    arr1[index7 + 4] = this.bytes[index8 + 4];
-                    arr1[index7 + 5] = this.bytes[index8 + 5];
-                }
-            }
-            return new UnmanagedImage(Marshal.UnsafeAddrOfPinnedArrayElement<byte>(arr1, 0), r.Width, r.Height, stride3, PixelFormat.Format48bppRgb);
-        }
-
-        public Bitmap GetCropBuffer(Rectangle r)
-        {
-            if (this.BitsPerPixel <= 8)
-                return new Bitmap(new AForge.Imaging.Filters.Crop(r).Apply(this.Image));
-            if (this.RGBChannelsCount == 1)
-            {
-                int num1 = 2;
-                int num2 = r.Width * num1;
-                int stride = this.Stride;
-                byte[] bts = new byte[num2 * r.Height];
-                for (int index1 = 0; index1 < r.Height; ++index1)
-                {
-                    for (int index2 = 0; index2 < num2; index2 += num1)
-                    {
-                        int index3 = (index1 * num2 + index2) * this.RGBChannelsCount;
-                        int index4 = ((index1 + r.Y) * stride + (index2 + r.X * num1)) * this.RGBChannelsCount;
-                        bts[index3] = this.bytes[index4];
-                        bts[index3 + 1] = this.bytes[index4 + 1];
-                    }
-                }
-                return new Bitmap(r.Width, r.Height, PixelFormat.Format16bppGrayScale, bts, this.Coordinate, this.ID);
-            }
-            int num3 = 6;
-            int num4 = r.Width * num3;
-            int stride1 = this.Stride;
-            byte[] bts1 = new byte[num4 * r.Height];
-            for (int index5 = 0; index5 < r.Height; ++index5)
-            {
-                for (int index6 = 0; index6 < num4; index6 += num3)
-                {
-                    int index7 = index5 * num4 + index6;
-                    int index8 = (index5 + r.Y) * stride1 + (index6 + r.X * num3);
-                    bts1[index7] = this.bytes[index8];
-                    bts1[index7 + 1] = this.bytes[index8 + 1];
-                    bts1[index7 + 2] = this.bytes[index8 + 2];
-                    bts1[index7 + 3] = this.bytes[index8 + 3];
-                    bts1[index7 + 4] = this.bytes[index8 + 4];
-                    bts1[index7 + 5] = this.bytes[index8 + 5];
-                }
-            }
-            return new Bitmap(r.Width, r.Height, PixelFormat.Format48bppRgb, bts1, this.Coordinate, this.ID);
-        }
-
         public static byte[] ConvertToInterleaved(byte[] nonInterleaved, PixelFormat px)
         {
-            if (px == PixelFormat.Format24bppRgb)
+            int numChannels;
+            int bytesPerChannel;
+
+            switch (px)
             {
-                int numPixels = nonInterleaved.Length / 3;
-                byte[] interleaved = new byte[nonInterleaved.Length];
-
-                for (int i = 0; i < numPixels; i++)
-                {
-                    interleaved[3 * i] = nonInterleaved[i];                // Red
-                    interleaved[3 * i + 1] = nonInterleaved[i + numPixels]; // Green
-                    interleaved[3 * i + 2] = nonInterleaved[i + 2 * numPixels]; // Blue
-                }
-                return interleaved;
+                case PixelFormat.Format24bppRgb:
+                    numChannels = 3;      // R, G, B
+                    bytesPerChannel = 1;
+                    break;
+                case PixelFormat.Format32bppArgb:
+                    numChannels = 4;      // A, R, G, B
+                    bytesPerChannel = 1;
+                    break;
+                case PixelFormat.Format48bppRgb:
+                    numChannels = 3;      // R, G, B, each 16-bit
+                    bytesPerChannel = 2;
+                    break;
+                case PixelFormat.Format16bppGrayScale:
+                    numChannels = 1;      // Grayscale, 16-bit
+                    bytesPerChannel = 2;
+                    break;
+                default:
+                    throw new NotSupportedException("PixelFormat " + px + " is not supported.");
             }
-            else if (px == PixelFormat.Format32bppArgb)
+
+            int numPixels = nonInterleaved.Length / (numChannels * bytesPerChannel);
+            byte[] interleaved = new byte[nonInterleaved.Length];
+
+            // Interleaving logic
+            for (int i = 0; i < numPixels; i++)
             {
-                int numPixels = nonInterleaved.Length / 4;
-                byte[] interleaved = new byte[nonInterleaved.Length];
-
-                for (int i = 0; i < numPixels; i++)
+                for (int c = 0; c < numChannels; c++)
                 {
-                    interleaved[4 * i] = nonInterleaved[i];                      // Red
-                    interleaved[4 * i + 1] = nonInterleaved[i + numPixels];      // Green
-                    interleaved[4 * i + 2] = nonInterleaved[i + 2 * numPixels];  // Blue
-                    interleaved[4 * i + 3] = nonInterleaved[i + 3 * numPixels];  // Alpha
-                }
+                    int sourceIndex = i * bytesPerChannel + c * numPixels * bytesPerChannel;
+                    int targetIndex = (i * numChannels + c) * bytesPerChannel;
 
-                return interleaved;
-            }
-            else if (px == PixelFormat.Format48bppRgb)
-            {
-                int numPixels = nonInterleaved.Length / 6;
-                byte[] interleaved = new byte[nonInterleaved.Length];
-
-                for (int i = 0; i < numPixels; i++)
-                {
-                    interleaved[6 * i] = nonInterleaved[i * 2];                     // Red high byte
-                    interleaved[6 * i + 1] = nonInterleaved[i * 2 + 1];             // Red low byte
-                    interleaved[6 * i + 2] = nonInterleaved[numPixels * 2 + i * 2];     // Green high byte
-                    interleaved[6 * i + 3] = nonInterleaved[numPixels * 2 + i * 2 + 1]; // Green low byte
-                    interleaved[6 * i + 4] = nonInterleaved[numPixels * 4 + i * 2];     // Blue high byte
-                    interleaved[6 * i + 5] = nonInterleaved[numPixels * 4 + i * 2 + 1]; // Blue low byte
+                    // Copy each channel's bytes (1 byte for 8-bit channels, 2 bytes for 16-bit channels)
+                    for (int b = 0; b < bytesPerChannel; b++)
+                    {
+                        interleaved[targetIndex + b] = nonInterleaved[sourceIndex + b];
+                    }
                 }
-                return interleaved;
             }
-            else if (px == PixelFormat.Float || px == PixelFormat.Short || px == PixelFormat.Format8bppIndexed || px == PixelFormat.Format16bppGrayScale)
-                return nonInterleaved;
-            else
-                throw new NotSupportedException("PixelFormat " + px + " is not supported.");
+
+            return interleaved;
         }
 
         private void Initialize(
