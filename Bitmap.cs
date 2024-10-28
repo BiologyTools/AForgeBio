@@ -2356,6 +2356,14 @@ namespace AForge
             levelsLinear1.InBlue = rb;
             return levelsLinear1.Apply(image1);
         }
+        /// It takes a buffer, a color, and a range, and returns a bitmap with the color applied to the
+        /// buffer
+        /// 
+        /// @param BufferInfo This is a class that contains the following properties:
+        /// @param IntRange This is a struct that contains a min and max value.
+        /// @param col The color to use for the emission.
+        /// 
+        /// @return A bitmap.
         public static Bitmap GetEmissionBitmap(Bitmap bfs, IntRange rr, Color col)
         {
             int stride;
@@ -2394,14 +2402,14 @@ namespace AForge
                         byte[] gbb = BitConverter.GetBytes(gs);
                         byte[] bbb = BitConverter.GetBytes(bs);
                         //R
-                        bts[rowRGB + indexRGB] = bbb[0];
-                        bts[rowRGB + indexRGB + 1] = bbb[1];
+                        bts[rowRGB + indexRGB] = rbb[0];
+                        bts[rowRGB + indexRGB + 1] = rbb[1];
                         //G
                         bts[rowRGB + indexRGB + 2] = gbb[0];
                         bts[rowRGB + indexRGB + 3] = gbb[1];
                         //B
-                        bts[rowRGB + indexRGB + 4] = rbb[0];
-                        bts[rowRGB + indexRGB + 5] = rbb[1];
+                        bts[rowRGB + indexRGB + 4] = bbb[0];
+                        bts[rowRGB + indexRGB + 5] = bbb[1];
                     }
                 }
             }
@@ -2500,17 +2508,25 @@ namespace AForge
             if (bfs.BitsPerPixel > 8)
                 return GetBitmap(w, h, w * 3, PixelFormat.Format24bppRgb, bt, bfs.Coordinate);
             else
-                return GetBitmap(w, h, w * 3 * 2, PixelFormat.Format24bppRgb, bt, bfs.Coordinate);
+                return GetBitmap(w, h, w * 3 * 2, PixelFormat.Format48bppRgb, bt, bfs.Coordinate);
         }
+        /// It takes a list of buffer info objects and a list of channel objects and returns a bitmap of
+        /// the emission data
+        /// 
+        /// @param bfs an array of BufferInfo objects, each of which contains a buffer of data (a
+        /// float[]) and the size of the buffer (SizeX and SizeY).
+        /// @param chans an array of Channel objects, which are defined as:
+        /// 
+        /// @return A bitmap of the emission image.
         public static Bitmap GetEmissionBitmap(Bitmap[] bfs, Channel[] chans)
         {
             Bitmap bm = new Bitmap(bfs[0].SizeX, bfs[0].SizeY, PixelFormat.Format24bppRgb);
             Merge m = new Merge(bm);
             for (int i = 0; i < chans.Length; i++)
             {
+                m.OverlayImage = bm;
                 Bitmap b = GetEmissionBitmap(bfs[i], chans[i].range[0], chans[i].EmissionColor);
-                m.OverlayImage = b;
-                m.ApplyInPlace(bm);
+                bm = m.Apply(b);
             }
             return bm;
         }
