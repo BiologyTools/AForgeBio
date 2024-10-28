@@ -3538,11 +3538,11 @@ namespace AForge
 
         public Bitmap(int w, int h, PixelFormat px)
         {
-            this.SizeX = w;
-            this.SizeY = h;
-            this.pixelFormat = px;
-            this.Coordinate = new ZCT();
-            this.Bytes = new byte[h * this.Stride];
+            PixelFormat = px;
+            SizeX = w;
+            SizeY = h;
+            Bytes = new byte[Stride * h];
+            Initialize("", w, h, px, this.Bytes, new ZCT(), 0, null);
         }
 
         public Bitmap(
@@ -3562,25 +3562,14 @@ namespace AForge
 
         public Bitmap(string file, UnmanagedImage im, ZCT coord, int index)
         {
-            this.ID = Bitmap.CreateID(file, index);
-            this.SizeX = im.Width;
-            this.SizeY = im.Height;
-            this.pixelFormat = im.PixelFormat;
-            this.Coordinate = coord;
             this.Image = im;
-            this.stats = Statistics.FromBytes(this);
+            Initialize("", im.Width, im.Height, im.PixelFormat, this.Bytes, new ZCT(), 0, null);
         }
 
         public Bitmap(string file, UnmanagedImage im, ZCT coord, int index, Plane pl)
         {
-            this.ID = Bitmap.CreateID(file, index);
-            this.SizeX = im.Width;
-            this.SizeY = im.Height;
-            this.pixelFormat = im.PixelFormat;
-            this.Coordinate = coord;
             this.Image = im;
-            this.Plane = pl;
-            this.stats = Statistics.FromBytes(this);
+            Initialize("", im.Width, im.Height, im.PixelFormat, this.Bytes, new ZCT(), 0, null);
         }
 
         public Bitmap(int width, int height, int stride, PixelFormat pixelFormat, IntPtr imageData)
@@ -3590,17 +3579,8 @@ namespace AForge
             this.pixelFormat = pixelFormat;
             this.bytes = new byte[stride * height];
             Marshal.Copy(imageData, this.bytes, 0, stride * height);
-            this.stats = Statistics.FromBytes(this);
+            Initialize("", width, height, pixelFormat, this.Bytes, new ZCT(), 0, null);
         }
-
-        public Bitmap(int width, int height, int stride, PixelFormat pixelFormat, short[] imageData)
-        {
-            this.SizeX = width;
-            this.SizeY = height;
-            this.pixelFormat = pixelFormat;
-            this.stats = Statistics.FromBytes(this);
-        }
-
         public Bitmap(UnmanagedImage im)
         {
             this.SizeX = im.Width;
@@ -3610,8 +3590,17 @@ namespace AForge
             this.Image = im;
             this.stats = Statistics.FromBytes(this);
         }
+        /// <summary>
+        /// Saves a Bitmap to a file. Only supports 8 bit depth. Supported formats are PNG, XPM, JPEG, TIFF, PNM, RAS, BMP, and GIF.
+        /// </summary>
+        /// <param name="file"></param>
+        /// <param name="format"></param>
+        public void Save(string file, string format)
+        {
+            Pixbuf.Save(file, format);
+        }
 
-        public Bitmap(int w, int h, PixelFormat px, byte[] bts, ZCT coord, string id) => this.Initialize(id, w, h, px, bts, coord, 0, (Plane)null);
+        public Bitmap(int w, int h, PixelFormat px, byte[] bts, ZCT coord, string id) => this.Initialize(id, w, h, px, bts, coord, 0, null);
 
         public static UnmanagedImage SwitchRedBlue(UnmanagedImage image) => Bitmap.SwitchRedBlue(new Bitmap(image)).Image;
 
