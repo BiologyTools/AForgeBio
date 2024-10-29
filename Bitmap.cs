@@ -14,6 +14,7 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Threading.Channels;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace AForge
 {
@@ -3432,16 +3433,16 @@ namespace AForge
         }
 
         private void Initialize(
-            string file,
-            int w,
-            int h,
-            PixelFormat px,
-            byte[] bytes,
-            ZCT coord,
-            int index,
-            Plane plane,
-            bool littleEndian = true,
-            bool interleaved = true)
+        string file,
+        int w,
+        int h,
+        PixelFormat px,
+        byte[] bytes,
+        ZCT coord,
+        int index,
+        Plane plane,
+        bool littleEndian = true,
+        bool interleaved = true)
         {
             // Generate a unique ID for this bitmap based on file name and index
             this.ID = Bitmap.CreateID(file, index);
@@ -3459,50 +3460,53 @@ namespace AForge
                 throw new ArgumentException("Byte array cannot be null or empty.", nameof(bytes));
             }
 
-            // Handle interleaving: Convert to interleaved format if necessary
-            if (!interleaved)
+            // Handle endianness and interleaving
+            if (interleaved && littleEndian)
+            {
+                this.Bytes = bytes; // Already in the correct format
+                if(px != PixelFormat.Format32bppArgb)
+                SwitchRedBlue();
+            }
+            else if (!interleaved && littleEndian)
             {
                 this.Bytes = ConvertToInterleaved(bytes, pixelFormat);
             }
-            else
+            else if (interleaved && !littleEndian)
             {
-                this.Bytes = bytes;
-            }
-
-            // Handle byte order (endianness)
-            if (!littleEndian)
-            {
-                // Reverse the byte order according to pixel format
+                this.Bytes = new byte[bytes.Length];
+                Buffer.BlockCopy(bytes, 0, this.Bytes, 0, bytes.Length);
                 ReverseByteOrderByPixelFormat();
-
-                // Switch red and blue channels if necessary for formats like RGB/BGR
-                if (isRGB)
-                {
-                    SwitchRedBlue();
-                }
+            }
+            else // !interleaved && !littleEndian
+            {
+                this.Bytes = ConvertToInterleaved(bytes, pixelFormat);
+                ReverseByteOrderByPixelFormat();
             }
 
             // Special case for 32-bit ARGB format: Check and correct transparency
             if (px == PixelFormat.Format32bppArgb)
             {
-                for (int y = 0; y < SizeY; y++)
-                {
-                    for (int x = 0; x < SizeX; x++)
-                    {
-                        // Get the value of the alpha channel (4th byte)
-                        int alpha = (int)GetValue(x, y, 3); // Alpha channel is at index 3 in 32bpp ARGB
+                CorrectTransparency();
+            }
 
-                        // If alpha is 0 (fully transparent), set it to 255 (fully opaque)
-                        if (alpha == 0)
-                        {
-                            SetValue(x, y, 3, (byte)255);
-                        }
+            // Calculate and assign statistics from the byte data
+            this.stats = Statistics.FromBytes(this);
+        }
+
+        private void CorrectTransparency()
+        {
+            int stride = this.SizeX * 4; // 4 bytes per pixel for 32bppArgb
+            for (int y = 0; y < this.SizeY; y++)
+            {
+                for (int x = 0; x < this.SizeX; x++)
+                {
+                    int index = y * stride + x * 4 + 3; // Alpha channel is at index 3
+                    if (this.Bytes[index] == 0)
+                    {
+                        this.Bytes[index] = 255; // Set fully opaque
                     }
                 }
             }
-
-            // Calculate and assign statistics from the byte data (presumably for image analysis)
-            this.stats = Statistics.FromBytes(this);
         }
 
         // Helper method to reverse byte order based on pixel format
@@ -3566,12 +3570,9 @@ namespace AForge
         }
         public Bitmap(UnmanagedImage im)
         {
-            this.SizeX = im.Width;
-            this.SizeY = im.Height;
-            this.pixelFormat = im.PixelFormat;
-            this.Coordinate = new ZCT();
-            this.Image = im;
-            this.stats = Statistics.FromBytes(this);
+            byte[] bts = new byte[im.Stride * im.Height];
+            Marshal.Copy(im.ImageData, bts, 0, im.Stride * im.Height);
+            Initialize("", im.Width, im.Height, im.PixelFormat, bts, new ZCT(), 0, null);
         }
         /// <summary>
         /// Saves a Bitmap to a file. Only supports 8 bit depth. Supported formats are PNG, XPM, JPEG, TIFF, PNM, RAS, BMP, and GIF.
@@ -3853,7 +3854,16 @@ namespace AForge
             }
         }
 
-        public bool isRGB => this.pixelFormat != PixelFormat.Format8bppIndexed && this.pixelFormat != PixelFormat.Format16bppGrayScale && this.pixelFormat != PixelFormat.Float && this.pixelFormat != PixelFormat.Short;
+        public bool isRGB
+        {
+            get
+            {
+                if (RGBChannelsCount > 1)
+                    return true;
+                else
+                    return false;
+            }
+        }
 
         public override string ToString() => System.IO.Path.GetFileName(File) + ", " + Width + ", " + Height;
 
