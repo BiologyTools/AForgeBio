@@ -799,132 +799,140 @@ namespace AForge
         }
         public static Statistics[] FromBytes(byte[] bytes, int width, int height, int rgbChannels, int bitsPerPixel, int stride, PixelFormat pixelFormat)
         {
-            Statistics[] stats = new Statistics[rgbChannels];
-
-            // Initialize each channel's statistics
-            for (int i = 0; i < rgbChannels; i++)
+            try
             {
-                stats[i] = new Statistics(bitsPerPixel)
+                Statistics[] stats = new Statistics[rgbChannels];
+
+                // Initialize each channel's statistics
+                for (int i = 0; i < rgbChannels; i++)
                 {
-                    max = ushort.MinValue,
-                    min = ushort.MaxValue,
-                    bitsPerPixel = bitsPerPixel
-                };
-            }
-
-            // Sum values to compute mean
-            float sumR = 0, sumG = 0, sumB = 0, sumA = 0;
-
-            // Process different pixel formats
-            switch (pixelFormat)
-            {
-                case PixelFormat.Format16bppGrayScale:
-                case PixelFormat.Format48bppRgb:
+                    stats[i] = new Statistics(bitsPerPixel)
                     {
-                        int bytesPerChannel = bitsPerPixel / 8;
-                        for (int y = 0; y < height; y++)
-                        {
-                            for (int x = 0; x < stride; x += bytesPerChannel * rgbChannels)
-                            {
-                                if (rgbChannels == 3) // RGB
-                                {
-                                    ushort b = BitConverter.ToUInt16(bytes, y * stride + x);
-                                    ushort g = BitConverter.ToUInt16(bytes, y * stride + x + 2);
-                                    ushort r = BitConverter.ToUInt16(bytes, y * stride + x + 4);
+                        max = ushort.MinValue,
+                        min = ushort.MaxValue,
+                        bitsPerPixel = bitsPerPixel
+                    };
+                }
 
-                                    UpdateStatistics(stats[0], r, ref sumR);
-                                    UpdateStatistics(stats[1], g, ref sumG);
-                                    UpdateStatistics(stats[2], b, ref sumB);
-                                }
-                                else // Grayscale
+                // Sum values to compute mean
+                float sumR = 0, sumG = 0, sumB = 0, sumA = 0;
+
+                // Process different pixel formats
+                switch (pixelFormat)
+                {
+                    case PixelFormat.Format16bppGrayScale:
+                    case PixelFormat.Format48bppRgb:
+                        {
+                            int bytesPerChannel = bitsPerPixel / 8;
+                            for (int y = 0; y < height; y++)
+                            {
+                                for (int x = 0; x < stride; x += bytesPerChannel * rgbChannels)
                                 {
-                                    ushort gray = BitConverter.ToUInt16(bytes, y * stride + x);
-                                    UpdateStatistics(stats[0], gray, ref sumR);
+                                    if (rgbChannels == 3) // RGB
+                                    {
+                                        ushort b = BitConverter.ToUInt16(bytes, y * stride + x);
+                                        ushort g = BitConverter.ToUInt16(bytes, y * stride + x + 2);
+                                        ushort r = BitConverter.ToUInt16(bytes, y * stride + x + 4);
+
+                                        UpdateStatistics(stats[0], r, ref sumR);
+                                        UpdateStatistics(stats[1], g, ref sumG);
+                                        UpdateStatistics(stats[2], b, ref sumB);
+                                    }
+                                    else // Grayscale
+                                    {
+                                        ushort gray = BitConverter.ToUInt16(bytes, y * stride + x);
+                                        UpdateStatistics(stats[0], gray, ref sumR);
+                                    }
                                 }
                             }
                         }
-                    }
-                    break;
+                        break;
 
-                case PixelFormat.Format8bppIndexed:
-                case PixelFormat.Format24bppRgb:
-                case PixelFormat.Format32bppArgb:
-                    {
-                        for (int y = 0; y < height; y++)
+                    case PixelFormat.Format8bppIndexed:
+                    case PixelFormat.Format24bppRgb:
+                    case PixelFormat.Format32bppArgb:
                         {
-                            for (int x = 0; x < width * rgbChannels; x += rgbChannels)
+                            for (int y = 0; y < height; y++)
                             {
-                                if (rgbChannels == 4) // ARGB
+                                for (int x = 0; x < width * rgbChannels; x += rgbChannels)
                                 {
-                                    byte a = bytes[y * stride + x];
-                                    byte b = bytes[y * stride + x + 1];
-                                    byte g = bytes[y * stride + x + 2];
-                                    byte r = bytes[y * stride + x + 3];
+                                    if (rgbChannels == 4) // ARGB
+                                    {
+                                        byte a = bytes[y * stride + x];
+                                        byte b = bytes[y * stride + x + 1];
+                                        byte g = bytes[y * stride + x + 2];
+                                        byte r = bytes[y * stride + x + 3];
 
-                                    UpdateStatistics(stats[0], a, ref sumA);
-                                    UpdateStatistics(stats[1], b, ref sumB);
-                                    UpdateStatistics(stats[2], g, ref sumG);
-                                    UpdateStatistics(stats[3], r, ref sumR);
-                                }
-                                else if (rgbChannels == 3) // RGB
-                                {
-                                    byte b = bytes[y * stride + x];
-                                    byte g = bytes[y * stride + x + 1];
-                                    byte r = bytes[y * stride + x + 2];
+                                        UpdateStatistics(stats[0], a, ref sumA);
+                                        UpdateStatistics(stats[1], b, ref sumB);
+                                        UpdateStatistics(stats[2], g, ref sumG);
+                                        UpdateStatistics(stats[3], r, ref sumR);
+                                    }
+                                    else if (rgbChannels == 3) // RGB
+                                    {
+                                        byte b = bytes[y * stride + x];
+                                        byte g = bytes[y * stride + x + 1];
+                                        byte r = bytes[y * stride + x + 2];
 
-                                    UpdateStatistics(stats[0], r, ref sumR);
-                                    UpdateStatistics(stats[1], g, ref sumG);
-                                    UpdateStatistics(stats[2], b, ref sumB);
-                                }
-                                else // Grayscale
-                                {
-                                    byte gray = bytes[y * stride + x];
-                                    UpdateStatistics(stats[0], gray, ref sumR);
+                                        UpdateStatistics(stats[0], r, ref sumR);
+                                        UpdateStatistics(stats[1], g, ref sumG);
+                                        UpdateStatistics(stats[2], b, ref sumB);
+                                    }
+                                    else // Grayscale
+                                    {
+                                        byte gray = bytes[y * stride + x];
+                                        UpdateStatistics(stats[0], gray, ref sumR);
+                                    }
                                 }
                             }
                         }
-                    }
-                    break;
+                        break;
 
-                case PixelFormat.Short:
-                    for (int y = 0; y < height; y++)
-                    {
-                        for (int x = 0; x < width; x++)
+                    case PixelFormat.Short:
+                        for (int y = 0; y < height; y++)
                         {
-                            short value = BitConverter.ToInt16(bytes, y * stride + x);
-                            UpdateStatistics(stats[0], value, ref sumR);
+                            for (int x = 0; x < width; x++)
+                            {
+                                short value = BitConverter.ToInt16(bytes, y * stride + x);
+                                UpdateStatistics(stats[0], value, ref sumR);
+                            }
                         }
-                    }
-                    break;
+                        break;
 
-                case PixelFormat.Float:
-                    for (int y = 0; y < height; y++)
-                    {
-                        for (int x = 0; x < width; x++)
+                    case PixelFormat.Float:
+                        for (int y = 0; y < height; y++)
                         {
-                            float value = BitConverter.ToSingle(bytes, y * stride + x);
-                            UpdateStatistics(stats[0], value, ref sumR);
+                            for (int x = 0; x < width; x++)
+                            {
+                                float value = BitConverter.ToSingle(bytes, y * stride + x);
+                                UpdateStatistics(stats[0], value, ref sumR);
+                            }
                         }
-                    }
-                    break;
+                        break;
 
-                default:
-                    throw new NotSupportedException($"{pixelFormat} is not supported.");
+                    default:
+                        throw new NotSupportedException($"{pixelFormat} is not supported.");
+                }
+
+                // Calculate mean values
+                stats[0].mean = sumR / (width * height);
+                if (rgbChannels > 1)
+                {
+                    stats[1].mean = sumG / (width * height);
+                    stats[2].mean = sumB / (width * height);
+                    if (rgbChannels == 4) stats[3].mean = sumA / (width * height);
+                }
+
+                // Calculate median
+                CalculateMedian(stats, rgbChannels);
+
+                return stats;
             }
-
-            // Calculate mean values
-            stats[0].mean = sumR / (width * height);
-            if (rgbChannels > 1)
+            catch (Exception ex)
             {
-                stats[1].mean = sumG / (width * height);
-                stats[2].mean = sumB / (width * height);
-                if (rgbChannels == 4) stats[3].mean = sumA / (width * height);
+                Console.WriteLine(ex.Message);
+                return null;
             }
-
-            // Calculate median
-            CalculateMedian(stats, rgbChannels);
-
-            return stats;
         }
 
         /// <summary>
@@ -1846,21 +1854,11 @@ namespace AForge
             set => this.littleEndian = value;
         }
 
-        public Gdk.Pixbuf Pixbuf
+        public Gdk.Pixbuf GetPixbuf()
         {
-            get
-            {
-                // Create the Pixbuf object with the interleaved data
-                Gdk.Pixbuf pixbuf = new Gdk.Pixbuf(
-                    RGBBytes,
-                    true,
-                    8,
-                    SizeX,
-                    SizeY,
-                    SizeX * 4
-                );
-                return pixbuf;
-            }
+            // Create the Pixbuf object with the interleaved data
+            Gdk.Pixbuf pixbuf = new Gdk.Pixbuf(GetRGBABytes(), true, 8, Width, Height, Width * 4);
+            return pixbuf;
         }
 
         public void BinarizeOtsu()
@@ -1868,7 +1866,7 @@ namespace AForge
             Bitmap bm;
             OtsuThreshold otsu = new OtsuThreshold();
             ExtractChannel ch = new ExtractChannel(0);
-            bm = ch.Apply(this.ImageRGB);
+            bm = ch.Apply(this.GetImageRGBA());
             otsu.ApplyInPlace(bm);
             this.Bytes = bm.bytes;
             this.PixelFormat = bm.PixelFormat;
@@ -1970,13 +1968,15 @@ namespace AForge
             set => this.bytes = value;
         }
 
-        public byte[] PaddedBytes => Bitmap.GetPaddedBuffer(this.bytes, this.SizeX, this.SizeY, this.Stride, this.PixelFormat);
-
+        public byte[] GetPaddedBytes()
+        {
+           return Bitmap.GetPaddedBuffer(this.bytes, this.SizeX, this.SizeY, this.Stride, this.PixelFormat);
+        }
         public unsafe UnmanagedImage Image
         {
             get
             {
-                fixed (byte* numPtr = this.PaddedBytes)
+                fixed (byte* numPtr = this.GetPaddedBytes())
                     return new UnmanagedImage((IntPtr)(void*)numPtr, this.SizeX, this.SizeY, this.PaddedStride, this.PixelFormat);
             }
             set
@@ -1989,20 +1989,18 @@ namespace AForge
             }
         }
 
-        public byte[] RGBBytes => Bitmap.GetBitmapRGB(this.SizeX, this.SizeY, this.PixelFormat, this.Bytes).Bytes;
-
-        public Bitmap ImageRGB
+        public byte[] GetRGBABytes()
         {
-            get => Bitmap.GetBitmapRGB(this.SizeX, this.SizeY, this.PixelFormat, this.Bytes);
-            set
-            {
-                Marshal.Copy(value.Bytes, 0, Marshal.UnsafeAddrOfPinnedArrayElement<byte>(this.Bytes, 0), value.Bytes.Length);
-                this.PixelFormat = value.PixelFormat;
-                this.SizeX = value.Width;
-                this.SizeY = value.Height;
-            }
+            return Bitmap.GetBitmapRGBA(this.SizeX, this.SizeY, this.PixelFormat, this.Bytes).Bytes;
         }
-
+        public Bitmap GetImageRGBA()
+        {
+            return Bitmap.GetBitmapRGBA(this.SizeX, this.SizeY, this.PixelFormat, this.Bytes);
+        }
+        public Bitmap GetImageRGB()
+        {
+            return Bitmap.GetBitmapRGB(this.SizeX, this.SizeY, this.PixelFormat, this.Bytes);
+        }
         public unsafe IntPtr Data
         {
             get
@@ -2012,8 +2010,10 @@ namespace AForge
             }
         }
 
-        public IntPtr RGBData => Bitmap.GetRGB32Data(this.SizeX, this.SizeY, this.PixelFormat, this.bytes);
-
+        public IntPtr GetRGBData()
+        {
+            return Bitmap.GetRGB32Data(this.SizeX, this.SizeY, this.PixelFormat, this.bytes);
+        }
         public Plane Plane
         {
             get => this.plane;
@@ -2763,7 +2763,7 @@ namespace AForge
         }
 
 
-        public static unsafe Bitmap GetBitmapRGB(int w, int h, PixelFormat px, byte[] bts)
+        public static unsafe Bitmap GetBitmapRGBA(int w, int h, PixelFormat px, byte[] bts)
         {
             switch (px)
             {
@@ -2918,6 +2918,147 @@ namespace AForge
                             numPtr[index + 1] = (byte)num5;
                             numPtr[index + 2] = (byte)num5;
                             numPtr[index + 3] = byte.MaxValue;
+                        }
+                    }
+                    bm.UnlockBits(bd);
+                    return bm;
+                default:
+                    throw new NotSupportedException("Pixelformat " + px.ToString() + " is not supported.");
+            }
+        }
+
+        public static unsafe Bitmap GetBitmapRGB(int w, int h, PixelFormat px, byte[] bts)
+        {
+            switch (px)
+            {
+                case PixelFormat.Format8bppIndexed:
+                    Bitmap bitmap1 = new Bitmap(w, h, PixelFormat.Format24bppRgb);
+                    Rectangle r1 = new Rectangle(0, 0, w, h);
+                    BitmapData d1 = bitmap1.LockBits(r1, ImageLockMode.ReadWrite, bitmap1.PixelFormat);
+                    for (int index1 = 0; index1 < h; ++index1)
+                    {
+                        byte* numPtr = (byte*)((IntPtr)(void*)d1.Scan0 + index1 * d1.Stride);
+                        int num1 = index1 * w;
+                        for (int index2 = 0; index2 < w; ++index2)
+                        {
+                            int num2 = index2;
+                            int index3 = index2 * 3;
+                            byte bt = bts[num1 + num2];
+                            numPtr[index3 + 2] = bt;
+                            numPtr[index3 + 1] = bt;
+                            numPtr[index3] = bt;
+                        }
+                    }
+                    bitmap1.UnlockBits(d1);
+                    return bitmap1;
+                case PixelFormat.Format16bppGrayScale:
+                    Bitmap bitmap2 = new Bitmap(w, h, PixelFormat.Format24bppRgb);
+                    Rectangle r2 = new Rectangle(0, 0, w, h);
+                    BitmapData d2 = bitmap2.LockBits(r2, ImageLockMode.ReadWrite, bitmap2.PixelFormat);
+                    for (int index4 = 0; index4 < h; ++index4)
+                    {
+                        byte* numPtr = (byte*)((IntPtr)(void*)d2.Scan0 + index4 * d2.Stride);
+                        int num3 = index4 * w * 2;
+                        for (int index5 = 0; index5 < w; ++index5)
+                        {
+                            int num4 = index5 * 2;
+                            int index6 = index5 * 3;
+                            int num5 = (int)((double)BitConverter.ToUInt16(bts, num3 + num4) / (double)ushort.MaxValue * (double)byte.MaxValue);
+                            numPtr[index6 + 2] = (byte)num5;
+                            numPtr[index6 + 1] = (byte)num5;
+                            numPtr[index6] = (byte)num5;
+                        }
+                    }
+                    bitmap2.UnlockBits(d2);
+                    return bitmap2;
+                case PixelFormat.Format24bppRgb:
+                    Bitmap bitmap3 = new Bitmap(w, h, PixelFormat.Format24bppRgb, bts, new ZCT(), "");
+                    return bitmap3;
+                case PixelFormat.Format32bppArgb:
+                    Bitmap bitmap4 = new Bitmap(w, h, PixelFormat.Format24bppRgb);
+                    Rectangle r4 = new Rectangle(0, 0, w, h);
+                    BitmapData d4 = bitmap4.LockBits(r4, ImageLockMode.ReadWrite, bitmap4.PixelFormat);
+                    for (int index10 = 0; index10 < h; ++index10)
+                    {
+                        byte* numPtr = (byte*)((IntPtr)(void*)d4.Scan0 + index10 * d4.Stride);
+                        int num8 = index10 * w * 4;
+                        for (int index11 = 0; index11 < w; ++index11)
+                        {
+                            int num9 = index11 * 4;
+                            int index12 = index11 * 3;
+                            numPtr[index12 + 2] = bts[num8 + num9 + 2];
+                            numPtr[index12 + 1] = bts[num8 + num9 + 1];
+                            numPtr[index12] = bts[num8 + num9];
+                        }
+                    }
+                    bitmap4.UnlockBits(d4);
+                    return bitmap4;
+                case PixelFormat.Format48bppRgb:
+                    Bitmap bitmap5 = new Bitmap(w, h, PixelFormat.Format24bppRgb);
+                    Rectangle r5 = new Rectangle(0, 0, w, h);
+                    BitmapData d5 = bitmap5.LockBits(r5, ImageLockMode.ReadWrite, bitmap5.PixelFormat);
+                    for (int index13 = 0; index13 < h; ++index13)
+                    {
+                        byte* numPtr = (byte*)((IntPtr)(void*)d5.Scan0 + index13 * d5.Stride);
+                        int num10 = index13 * w * 6;
+                        for (int index14 = 0; index14 < w; ++index14)
+                        {
+                            int num11 = index14 * 6;
+                            int index15 = index14 * 3;
+                            int num12 = (int)((double)BitConverter.ToUInt16(bts, num10 + num11) / (double)ushort.MaxValue * (double)byte.MaxValue);
+                            int num13 = (int)((double)BitConverter.ToUInt16(bts, num10 + num11 + 2) / (double)ushort.MaxValue * (double)byte.MaxValue);
+                            int num14 = (int)((double)BitConverter.ToUInt16(bts, num10 + num11 + 4) / (double)ushort.MaxValue * (double)byte.MaxValue);
+                            numPtr[index15 + 2] = (byte)num12;
+                            numPtr[index15 + 1] = (byte)num13;
+                            numPtr[index15] = (byte)num14;
+                        }
+                    }
+                    bitmap5.UnlockBits(d5);
+                    return bitmap5;
+                case PixelFormat.Float:
+                    Bitmap bf = new Bitmap(w, h, PixelFormat.Format24bppRgb);
+                    Rectangle rf = new Rectangle(0, 0, w, h);
+                    BitmapData df = bf.LockBits(rf, ImageLockMode.ReadWrite, bf.PixelFormat);
+                    for (int y = 0; y < h; ++y)
+                    {
+                        byte* numPtr = (byte*)((IntPtr)(void*)df.Scan0 + y * df.Stride);
+                        int num8 = y * w * 4;
+                        for (int x = 0; x < w; ++x)
+                        {
+                            int num9 = x * 4;
+                            int index = x * 4;
+                            byte[] bt = new byte[4];
+                            bt[0] = bts[num8 + num9 + 3];
+                            bt[1] = bts[num8 + num9 + 2];
+                            bt[2] = bts[num8 + num9 + 1];
+                            bt[3] = bts[num8 + num9];
+                            float f = BitConverter.ToSingle(bt, 0) / ushort.MaxValue;
+                            numPtr[index + 0] = (byte)(f * byte.MaxValue);
+                            numPtr[index + 1] = (byte)(f * byte.MaxValue);
+                            numPtr[index + 2] = (byte)(f * byte.MaxValue);
+                        }
+                    }
+                    bf.UnlockBits(df);
+                    return bf;
+                case PixelFormat.Short:
+                    Bitmap bm = new Bitmap(w, h, PixelFormat.Format24bppRgb);
+                    Rectangle rec = new Rectangle(0, 0, w, h);
+                    BitmapData bd = bm.LockBits(rec, ImageLockMode.ReadWrite, bm.PixelFormat);
+                    for (int y = 0; y < h; ++y)
+                    {
+                        byte* numPtr = (byte*)((IntPtr)(void*)bd.Scan0 + y * bd.Stride);
+                        int num3 = y * w * 2;
+                        for (int x = 0; x < w; ++x)
+                        {
+                            int num4 = x * 2;
+                            int index = x * 4;
+                            byte[] bt = new byte[2];
+                            bt[0] = bts[num3 + num4 + 1];
+                            bt[1] = bts[num3 + num4];
+                            float num5 = ((float)BitConverter.ToInt16(bt, 0) / (float)short.MaxValue) * byte.MaxValue;
+                            numPtr[index] = (byte)num5;
+                            numPtr[index + 1] = (byte)num5;
+                            numPtr[index + 2] = (byte)num5;
                         }
                     }
                     bm.UnlockBits(bd);
@@ -3133,6 +3274,71 @@ namespace AForge
                 default:
                     throw new NotSupportedException("Pixelformat " + px.ToString() + " is not supported.");
             }
+        }
+
+        public static byte[] Convert16BitGrayscaleTo24BitRGB(byte[] input16BitGrayscale)
+        {
+            // Each 16-bit grayscale pixel takes 2 bytes, and each 8-bit RGB pixel will take 3 bytes
+            int numPixels = input16BitGrayscale.Length / 2;
+            byte[] output8BitRGB = new byte[numPixels * 3];
+
+            for (int i = 0, j = 0; i < input16BitGrayscale.Length; i += 2, j += 3)
+            {
+                // Extract the 16-bit grayscale value from the input array
+                ushort gray16 = (ushort)(input16BitGrayscale[i] | (input16BitGrayscale[i + 1] << 8));
+
+                // Downsample to 8-bit by dividing by 256
+                byte gray8 = (byte)(gray16 >> 8);
+
+                // Set the RGB values to the downsampled grayscale value
+                output8BitRGB[j] = gray8;       // Red channel
+                output8BitRGB[j + 1] = gray8;   // Green channel
+                output8BitRGB[j + 2] = gray8;   // Blue channel
+            }
+
+            return output8BitRGB;
+        }
+        public static byte[] Convert32BitARGBTo24BitRGB(byte[] input32BitARGB)
+        {
+            // Each 32-bit ARGB pixel takes 4 bytes, and each 24-bit RGB pixel will take 3 bytes
+            int numPixels = input32BitARGB.Length / 4;
+            byte[] output24BitRGB = new byte[numPixels * 3];
+
+            for (int i = 0, j = 0; i < input32BitARGB.Length; i += 4, j += 3)
+            {
+                // Skip the alpha channel and copy RGB values
+                output24BitRGB[j] = input32BitARGB[i + 1];     // Red channel
+                output24BitRGB[j + 1] = input32BitARGB[i + 2]; // Green channel
+                output24BitRGB[j + 2] = input32BitARGB[i + 3]; // Blue channel
+            }
+
+            return output24BitRGB;
+        }
+        public static byte[] Convert48BitTo24BitRGB(byte[] input48BitRGB)
+        {
+            // Each 48-bit RGB pixel takes 6 bytes (2 bytes per channel), and each 24-bit RGB pixel will take 3 bytes
+            int numPixels = input48BitRGB.Length / 6;
+            byte[] output24BitRGB = new byte[numPixels * 3];
+
+            for (int i = 0, j = 0; i < input48BitRGB.Length; i += 6, j += 3)
+            {
+                // Extract each 16-bit channel value from the input array
+                ushort r16 = (ushort)(input48BitRGB[i] | (input48BitRGB[i + 1] << 8));
+                ushort g16 = (ushort)(input48BitRGB[i + 2] | (input48BitRGB[i + 3] << 8));
+                ushort b16 = (ushort)(input48BitRGB[i + 4] | (input48BitRGB[i + 5] << 8));
+
+                // Downsample each channel to 8-bit by dividing by 256 (right-shifting by 8 bits)
+                byte r8 = (byte)(r16 >> 8);
+                byte g8 = (byte)(g16 >> 8);
+                byte b8 = (byte)(b16 >> 8);
+
+                // Store the 8-bit values in the output array
+                output24BitRGB[j] = r8;
+                output24BitRGB[j + 1] = g8;
+                output24BitRGB[j + 2] = b8;
+            }
+
+            return output24BitRGB;
         }
 
         public static unsafe Bitmap GetFiltered(
@@ -3459,38 +3665,47 @@ namespace AForge
             {
                 throw new ArgumentException("Byte array cannot be null or empty.", nameof(bytes));
             }
-
+            
             // Handle endianness and interleaving
             if (interleaved && littleEndian)
             {
-                this.Bytes = bytes; // Already in the correct format
-                if(px != PixelFormat.Format32bppArgb)
+                this.Bytes = bytes;
                 SwitchRedBlue();
             }
             else if (!interleaved && littleEndian)
             {
+                //DM-004
                 this.Bytes = ConvertToInterleaved(bytes, pixelFormat);
+                SwitchRedBlue();
             }
             else if (interleaved && !littleEndian)
             {
-                this.Bytes = new byte[bytes.Length];
-                Buffer.BlockCopy(bytes, 0, this.Bytes, 0, bytes.Length);
+                this.Bytes = bytes;
                 ReverseByteOrderByPixelFormat();
+                SwitchRedBlue();
             }
             else // !interleaved && !littleEndian
             {
+                //OK CMU-2.svs
                 this.Bytes = ConvertToInterleaved(bytes, pixelFormat);
                 ReverseByteOrderByPixelFormat();
+                SwitchRedBlue();
             }
-
             // Special case for 32-bit ARGB format: Check and correct transparency
             if (px == PixelFormat.Format32bppArgb)
             {
                 CorrectTransparency();
             }
-
-            // Calculate and assign statistics from the byte data
-            this.stats = Statistics.FromBytes(this);
+            try
+            {
+                // Calculate and assign statistics from the byte data
+                this.stats = Statistics.FromBytes(this);
+            }
+            catch (Exception ex)
+            {
+                this.Stats = null;
+            }
+            
         }
 
         private void CorrectTransparency()
@@ -3581,7 +3796,7 @@ namespace AForge
         /// <param name="format"></param>
         public void Save(string file, string format)
         {
-            Pixbuf.Save(file, format);
+            GetPixbuf().Save(file, format);
         }
 
         public Bitmap(int w, int h, PixelFormat px, byte[] bts, ZCT coord, string id) => this.Initialize(id, w, h, px, bts, coord, 0, null);
@@ -3680,7 +3895,7 @@ namespace AForge
 
         public static Bitmap To24Bit(Bitmap b) => Bitmap.GetRGB24Data(b.Width, b.Height, b.PixelFormat, b.Bytes);
 
-        public static Bitmap To32Bit(Bitmap b) => b.ImageRGB;
+        public static Bitmap To32Bit(Bitmap b) => b.GetImageRGBA();
 
         public static Bitmap SwitchChannels(Bitmap image, int c1, int c2)
         {
@@ -3880,7 +4095,6 @@ namespace AForge
             }
             this.ID = (string)null;
             this.file = (string)null;
-            GC.Collect();
         }
 
         public static Bitmap operator /(Bitmap a, Bitmap b)
