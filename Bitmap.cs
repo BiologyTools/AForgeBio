@@ -1631,7 +1631,7 @@ namespace AForge
         private byte[] bytes;
         private string file;
         private bool littleEndian = BitConverter.IsLittleEndian;
-        private Plane plane;
+        public Plane Plane;
 
         public ColorS GetPixel(int ix, int iy)
         {
@@ -2014,12 +2014,7 @@ namespace AForge
         {
             return Bitmap.GetRGB32Data(this.SizeX, this.SizeY, this.PixelFormat, this.bytes);
         }
-        public Plane Plane
-        {
-            get => this.plane;
-            set => this.plane = value;
-        }
-
+       
         public int PixelFormatSize
         {
             get
@@ -2227,15 +2222,15 @@ namespace AForge
             bitmapArray[2] = bitmap3;
             bitmapArray[0].file = file;
             if (plane != null)
-                bitmapArray[0].plane = plane;
+                bitmapArray[0].Plane = plane;
             bitmapArray[0].ID = Bitmap.CreateID(file, 0);
             bitmapArray[1].file = file;
             if (plane != null)
-                bitmapArray[1].plane = plane;
+                bitmapArray[1].Plane = plane;
             bitmapArray[1].ID = Bitmap.CreateID(file, 0);
             bitmapArray[2].file = file;
             if (plane != null)
-                bitmapArray[2].plane = plane;
+                bitmapArray[2].Plane = plane;
             bitmapArray[2].ID = Bitmap.CreateID(file, 0);
             bitmapArray[0].stats = Statistics.FromBytes(bitmapArray[0]);
             bitmapArray[1].stats = Statistics.FromBytes(bitmapArray[1]);
@@ -3918,7 +3913,7 @@ namespace AForge
                 bts[index] = this.bytes[index];
             return new Bitmap(this.SizeX, this.SizeY, this.PixelFormat, bts, this.Coordinate, this.ID)
             {
-                plane = this.Plane
+                Plane = this.Plane
             };
         }
 
@@ -3926,7 +3921,7 @@ namespace AForge
         {
             Bitmap bitmap = new Bitmap(this.SizeX, this.SizeY, this.PixelFormat, new byte[this.Stride * this.SizeY], this.Coordinate, this.ID);
             bitmap.bytes = new byte[bitmap.Stride * bitmap.SizeY];
-            bitmap.plane = this.Plane;
+            bitmap.Plane = this.Plane;
             return bitmap;
         }
         /*
