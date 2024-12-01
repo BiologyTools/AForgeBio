@@ -6,9 +6,9 @@
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
     <OutputType>Library</OutputType>
-    <Version>1.9.1</Version>
-    <AssemblyVersion>1.9.1</AssemblyVersion>
-    <FileVersion>1.9.1</FileVersion>
+    <Version>2.0.0</Version>
+    <AssemblyVersion>2.0.0</AssemblyVersion>
+    <FileVersion>2.0.0</FileVersion>
     <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
     <PackageId>AForgeBio</PackageId>
     <Title>AForgeBio</Title>
@@ -21,7 +21,7 @@
     <PackageRequireLicenseAcceptance>True</PackageRequireLicenseAcceptance>
     <Platforms>AnyCPU;x64;ARM64</Platforms>
     <PlatformTarget>AnyCPU</PlatformTarget>
-    <PackageReleaseNotes>Out of memory error fix.</PackageReleaseNotes>
+    <PackageReleaseNotes>Full support for float pixel format.</PackageReleaseNotes>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">

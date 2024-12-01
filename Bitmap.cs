@@ -33,6 +33,8 @@ namespace AForge
         Format64bppArgb,
         Format64bppPArgb,
         Float,
+        UInt,
+        Int,
         Short,
     }
     public enum RotateFlipType
@@ -349,6 +351,7 @@ namespace AForge
             col.B = (byte)b;
             return col;
         }
+
         public static Color Black = FromArgb(255, 0, 0, 0);
         public static Color White = FromArgb(255, 255, 255, 255);
         public static Color Red = FromArgb(255, 255, 0, 0);
@@ -367,27 +370,27 @@ namespace AForge
         public static Color DarkGray = FromArgb(255, 100, 100, 100);
         public static Color LightGray = FromArgb(255, 200, 200, 200);
         public static Color DarkKhaki = FromArgb(255, 189, 183, 107);
-        //TODO Set color values
-        public static Color Violet = FromArgb(255, 189, 183, 107);
-        public static Color Brown = FromArgb(255, 189, 183, 107);
-        public static Color Olive = FromArgb(255, 189, 183, 107);
-        public static Color Gold = FromArgb(255, 189, 183, 107);
-        public static Color Indigo = FromArgb(255, 189, 183, 107);
-        public static Color Ivory = FromArgb(255, 189, 183, 107);
-        public static Color HotPink = FromArgb(255, 189, 183, 107);
-        public static Color DarkSeaGreen = FromArgb(255, 189, 183, 107);
-        public static Color LimeGreen = FromArgb(255, 189, 183, 107);
-        public static Color Tomato = FromArgb(255, 189, 183, 107);
-        public static Color SteelBlue = FromArgb(255, 189, 183, 107);
-        public static Color SkyBlue = FromArgb(255, 189, 183, 107);
-        public static Color Silver = FromArgb(255, 189, 183, 107);
-        public static Color Salmon = FromArgb(255, 189, 183, 107);
-        public static Color SaddleBrown = FromArgb(255, 189, 183, 107);
-        public static Color RosyBrown = FromArgb(255, 189, 183, 107);
-        public static Color PowderBlue = FromArgb(255, 189, 183, 107);
-        public static Color Plum = FromArgb(255, 189, 183, 107);
-        public static Color PapayaWhip = FromArgb(255, 189, 183, 107);
-        public static Color Orange = FromArgb(255, 189, 183, 107);
+        public static Color Violet = FromArgb(255, 238, 130, 238);
+        public static Color Brown = FromArgb(255, 165, 42, 42);
+        public static Color Olive = FromArgb(255, 128, 128, 0);
+        public static Color Gold = FromArgb(255, 255, 215, 0);
+        public static Color Indigo = FromArgb(255, 75, 0, 130);
+        public static Color Ivory = FromArgb(255, 255, 255, 240);
+        public static Color HotPink = FromArgb(255, 255, 105, 180);
+        public static Color DarkSeaGreen = FromArgb(255, 143, 188, 143);
+        public static Color LimeGreen = FromArgb(255, 50, 205, 50);
+        public static Color Tomato = FromArgb(255, 255, 99, 71);
+        public static Color SteelBlue = FromArgb(255, 70, 130, 180);
+        public static Color SkyBlue = FromArgb(255, 135, 206, 235);
+        public static Color Silver = FromArgb(255, 192, 192, 192);
+        public static Color Salmon = FromArgb(255, 250, 128, 114);
+        public static Color SaddleBrown = FromArgb(255, 139, 69, 19);
+        public static Color RosyBrown = FromArgb(255, 188, 143, 143);
+        public static Color PowderBlue = FromArgb(255, 176, 224, 230);
+        public static Color Plum = FromArgb(255, 221, 160, 221);
+        public static Color PapayaWhip = FromArgb(255, 255, 239, 213);
+        public static Color Orange = FromArgb(255, 255, 165, 0);
+
         public static bool operator ==(Color a, Color b)
         {
             if (a.R == b.R && a.G == b.G && a.B == b.B)
@@ -425,23 +428,23 @@ namespace AForge
         {
             return new Rectangle((int)X, (int)Y, (int)W, (int)H);
         }
-        public bool IntersectsWith(RectangleD p)
+        public bool IntersectsWith(RectangleD other)
         {
-            if (IntersectsWith(p.X, p.Y) || IntersectsWith(p.X + p.W, p.Y) || IntersectsWith(p.X, p.Y + p.H) || IntersectsWith(p.X + p.W, p.Y + p.H))
-                return true;
-            else
-                return false;
+            return !(other.X > this.X + this.W ||   // Other is to the right
+                     other.X + other.W < this.X || // Other is to the left
+                     other.Y > this.Y + this.H || // Other is below
+                     other.Y + other.H < this.Y); // Other is above
         }
-        public bool IntersectsWith(PointD p)
+        public bool IntersectsWith(PointD point)
         {
-            return IntersectsWith(p.X, p.Y);
+            return (point.X >= X &&
+                    point.X <= X + W &&
+                    point.Y >= Y &&
+                    point.Y <= Y + H);
         }
         public bool IntersectsWith(double x, double y)
         {
-            if (X <= x && (X + W) >= x && Y <= y && (Y + H) >= y)
-                return true;
-            else
-                return false;
+            return IntersectsWith(new PointD(x, y));
         }
         public RectangleF ToRectangleF()
         {
@@ -475,23 +478,30 @@ namespace AForge
         {
             return new Rectangle((int)X, (int)Y, (int)Width, (int)Height);
         }
-        public bool IntersectsWith(RectangleF p)
+        public bool IntersectsWith(RectangleD other)
         {
-            if (IntersectsWith(p.X, p.Y) || IntersectsWith(p.X + p.Width, p.Y) || IntersectsWith(p.X, p.Y + p.Height) || IntersectsWith(p.X + p.Width, p.Y + p.Height))
-                return true;
-            else
-                return false;
+            return !(other.X > this.X + this.Width ||   // Other is to the right
+                     other.X + other.W < this.X || // Other is to the left
+                     other.Y > this.Y + this.Height || // Other is below
+                     other.Y + other.H < this.Y); // Other is above
         }
-        public bool IntersectsWith(PointF p)
+        public bool IntersectsWith(RectangleF other)
         {
-            return IntersectsWith(p.X, p.Y);
+            return !(other.X > this.X + this.Width ||   // Other is to the right
+                     other.X + other.Width < this.X || // Other is to the left
+                     other.Y > this.Y + this.Height || // Other is below
+                     other.Y + other.Height < this.Y); // Other is above
         }
-        public bool IntersectsWith(float x, float y)
+        public bool IntersectsWith(PointD point)
         {
-            if (X <= x && (X + Width) >= x && Y <= y && (Y + Height) >= y)
-                return true;
-            else
-                return false;
+            return (point.X >= X &&
+                    point.X <= X + Width &&
+                    point.Y >= Y &&
+                    point.Y <= Y + Height);
+        }
+        public bool IntersectsWith(double x, double y)
+        {
+            return IntersectsWith(new PointD(x, y));
         }
         public override string ToString()
         {
@@ -524,23 +534,23 @@ namespace AForge
         {
             return new Rectangle((int)X, (int)Y, (int)Width, (int)Height);
         }
-        public bool IntersectsWith(RectangleD p)
+        public bool IntersectsWith(RectangleD other)
         {
-            if (IntersectsWith(p.X, p.Y) || IntersectsWith(p.X + p.W, p.Y) || IntersectsWith(p.X, p.Y + p.H) || IntersectsWith(p.X + p.W, p.Y + p.H))
-                return true;
-            else
-                return false;
+            return !(other.X > this.X + this.Width ||   // Other is to the right
+                     other.X + other.W < this.X || // Other is to the left
+                     other.Y > this.Y + this.Height || // Other is below
+                     other.Y + other.H < this.Y); // Other is above
         }
-        public bool IntersectsWith(PointD p)
+        public bool IntersectsWith(PointD point)
         {
-            return IntersectsWith(p.X, p.Y);
+            return (point.X >= X &&
+                    point.X <= X + Width &&
+                    point.Y >= Y &&
+                    point.Y <= Y + Height);
         }
         public bool IntersectsWith(double x, double y)
         {
-            if (X <= x && (X + Width) >= x && Y <= y && (Y + Height) >= y)
-                return true;
-            else
-                return false;
+            return IntersectsWith(new PointD(x, y));
         }
         public Rectangle Intersect(Rectangle other)
         {
@@ -815,7 +825,7 @@ namespace AForge
                 }
 
                 // Sum values to compute mean
-                float sumR = 0, sumG = 0, sumB = 0, sumA = 0;
+                double sumR = 0, sumG = 0, sumB = 0, sumA = 0;
 
                 // Process different pixel formats
                 switch (pixelFormat)
@@ -902,25 +912,35 @@ namespace AForge
                     case PixelFormat.Float:
                         for (int y = 0; y < height; y++)
                         {
-                            for (int x = 0; x < width; x++)
+                            for (int x = 0; x < stride; x+=4)
                             {
-                                float value = BitConverter.ToSingle(bytes, y * stride + x);
+                                float f = BitConverter.ToSingle(bytes, y * stride + x);
+                                float value = System.Math.Abs(f);
                                 UpdateStatistics(stats[0], value, ref sumR);
                             }
                         }
                         break;
-
+                    case PixelFormat.UInt:
+                        for (int y = 0; y < height; y++)
+                        {
+                            for (int x = 0; x < width; x++)
+                            {
+                                uint value = BitConverter.ToUInt32(bytes, y * stride + x);
+                                UpdateStatistics(stats[0], value, ref sumR);
+                            }
+                        }
+                        break;
                     default:
                         throw new NotSupportedException($"{pixelFormat} is not supported.");
                 }
 
                 // Calculate mean values
-                stats[0].mean = sumR / (width * height);
+                stats[0].mean = (float)sumR / (width * height);
                 if (rgbChannels > 1)
                 {
-                    stats[1].mean = sumG / (width * height);
-                    stats[2].mean = sumB / (width * height);
-                    if (rgbChannels == 4) stats[3].mean = sumA / (width * height);
+                    stats[1].mean = (float)sumG / (width * height);
+                    stats[2].mean = (float)sumB / (width * height);
+                    if (rgbChannels == 4) stats[3].mean = (float)sumA / (width * height);
                 }
 
                 // Calculate median
@@ -938,12 +958,19 @@ namespace AForge
         /// <summary>
         /// Updates the min, max, and sum of statistics for a given channel.
         /// </summary>
-        private static void UpdateStatistics(Statistics stat, dynamic value, ref float sum)
+        private static void UpdateStatistics(Statistics stat, dynamic value, ref double sum)
         {
-            if (stat.max < value) stat.max = value;
-            if (stat.min > value) stat.min = value;
-            stat.values[value]++;
-            sum += value;
+            if (value < 0)
+                value = 0;
+            if(value > ushort.MaxValue)
+                value = ushort.MaxValue;
+            if (stat.max < value)
+                stat.max = value;
+            if (stat.min > value) 
+                stat.min = value;
+            if(value < stat.values.Length)
+                stat.values[(int)value]++;
+            sum += System.Math.Abs(value);
         }
 
         /// <summary>
@@ -1535,6 +1562,7 @@ namespace AForge
     {
         ReadWrite,
         ReadOnly,
+        WriteOnly,
     }
     public class LUT
     {
@@ -1683,7 +1711,14 @@ namespace AForge
         {
             this.SetValue(ix, iy, f);
         }
-
+        public void SetValue(int x, int y, uint value)
+        {
+            SetValue(x, y, 0, value);
+        }
+        public void SetValue(int x, int y, byte value)
+        {
+            SetValue(x, y, 0, value);
+        }
         public void SetValue(int x, int y, ushort value)
         {
             SetValue(x, y, 0, value);
@@ -1691,6 +1726,23 @@ namespace AForge
         public void SetValue(int x, int y, float value)
         {
             SetValue(x, y, 0, value);
+        }
+        public void SetValue(int x, int y, int channel, uint value)
+        {
+            try
+            {
+                byte[] bts = BitConverter.GetBytes(value);
+                int index = y * Stride + (x * PixelFormatSize) + (channel * 4);
+                for (int i = 0; i < bts.Length; i++)
+                {
+                    bytes[index + i] = bts[i];
+                }
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e.Message);
+            }
+
         }
         public void SetValue(int x, int y, int channel, float value)
         {
@@ -1730,12 +1782,6 @@ namespace AForge
         {
             try
             {
-                // Ensure the channel is within the valid range (0 to PixelFormatSize - 1)
-                if (channel < 0 || channel >= PixelFormatSize)
-                {
-                    throw new ArgumentOutOfRangeException(nameof(channel), "Invalid channel index.");
-                }
-
                 // Calculate the index in the byte array
                 int index = y * Stride + (x * PixelFormatSize) + channel;
 
@@ -1800,8 +1846,6 @@ namespace AForge
             get => this.file;
             set => this.file = value;
         }
-
-        public int HashID => this.ID.GetHashCode();
 
         public int Width => this.SizeX;
 
@@ -1948,6 +1992,10 @@ namespace AForge
                         return 16;
                     case PixelFormat.Float:
                         return 32;
+                    case PixelFormat.Int:
+                        return 32;
+                    case PixelFormat.UInt:
+                        return 32;
                     case PixelFormat.Short:
                         return 16;
                     default:
@@ -1993,13 +2041,13 @@ namespace AForge
         {
             return Bitmap.GetBitmapRGBA(this.SizeX, this.SizeY, this.PixelFormat, this.Bytes).Bytes;
         }
-        public Bitmap GetImageRGBA()
+        public Bitmap GetImageRGBA(bool normalized = false)
         {
-            return Bitmap.GetBitmapRGBA(this.SizeX, this.SizeY, this.PixelFormat, this.Bytes);
+            return Bitmap.GetBitmapRGBA(this.SizeX, this.SizeY, this.PixelFormat, this.Bytes, normalized);
         }
-        public Bitmap GetImageRGB()
+        public Bitmap GetImageRGB(bool normalized = false)
         {
-            return Bitmap.GetBitmapRGB(this.SizeX, this.SizeY, this.PixelFormat, this.Bytes);
+            return Bitmap.GetBitmapRGB(this.SizeX, this.SizeY, this.PixelFormat, this.Bytes, normalized);
         }
         public unsafe IntPtr Data
         {
@@ -2046,6 +2094,10 @@ namespace AForge
                     case PixelFormat.Format64bppPArgb:
                         return 8;
                     case PixelFormat.Float:
+                        return 4;
+                    case PixelFormat.UInt:
+                        return 4;
+                    case PixelFormat.Int:
                         return 4;
                     case PixelFormat.Short:
                         return 2;
@@ -2758,7 +2810,7 @@ namespace AForge
         }
 
 
-        public static unsafe Bitmap GetBitmapRGBA(int w, int h, PixelFormat px, byte[] bts)
+        public static unsafe Bitmap GetBitmapRGBA(int w, int h, PixelFormat px, byte[] bts, bool normalized = false)
         {
             switch (px)
             {
@@ -2874,21 +2926,26 @@ namespace AForge
                     for (int y = 0; y < h; ++y)
                     {
                         byte* numPtr = (byte*)((IntPtr)(void*)df.Scan0 + y * df.Stride);
-                        int num8 = y * w * 4;
+                        int num = y * w * 4;
                         for (int x = 0; x < w; ++x)
                         {
-                            int num9 = x * 4;
                             int index = x * 4;
-                            byte[] bt = new byte[4];
-                            bt[0] = bts[num8 + num9 + 3];
-                            bt[1] = bts[num8 + num9 + 2];
-                            bt[2] = bts[num8 + num9 + 1];
-                            bt[3] = bts[num8 + num9];
-                            float f = BitConverter.ToSingle(bt, 0) / ushort.MaxValue;
-                            numPtr[index + 0] = (byte)(f * byte.MaxValue);
-                            numPtr[index + 1] = (byte)(f * byte.MaxValue);
-                            numPtr[index + 2] = (byte)(f * byte.MaxValue);
-                            numPtr[index + 3] = byte.MaxValue;
+                            if (normalized)
+                            {
+                                float f = BitConverter.ToSingle(bts, index + num) * 255;
+                                numPtr[index + 0] = (byte)(f);
+                                numPtr[index + 1] = (byte)(f);
+                                numPtr[index + 2] = (byte)(f);
+                                numPtr[index + 3] = byte.MaxValue;
+                            }
+                            else
+                            {
+                                float f = BitConverter.ToSingle(bts, index + num);
+                                numPtr[index + 0] = (byte)(f);
+                                numPtr[index + 1] = (byte)(f);
+                                numPtr[index + 2] = (byte)(f);
+                                numPtr[index + 3] = byte.MaxValue;
+                            }
                         }
                     }
                     bf.UnlockBits(df);
@@ -2922,7 +2979,7 @@ namespace AForge
             }
         }
 
-        public static unsafe Bitmap GetBitmapRGB(int w, int h, PixelFormat px, byte[] bts)
+        public static unsafe Bitmap GetBitmapRGB(int w, int h, PixelFormat px, byte[] bts, bool normalized = false)
         {
             switch (px)
             {
@@ -3011,26 +3068,30 @@ namespace AForge
                     bitmap5.UnlockBits(d5);
                     return bitmap5;
                 case PixelFormat.Float:
-                    Bitmap bf = new Bitmap(w, h, PixelFormat.Format24bppRgb);
+                    Bitmap bf = new Bitmap(w, h, PixelFormat.Format32bppArgb);
                     Rectangle rf = new Rectangle(0, 0, w, h);
                     BitmapData df = bf.LockBits(rf, ImageLockMode.ReadWrite, bf.PixelFormat);
                     for (int y = 0; y < h; ++y)
                     {
                         byte* numPtr = (byte*)((IntPtr)(void*)df.Scan0 + y * df.Stride);
-                        int num8 = y * w * 4;
+                        int num = y * w * 4;
                         for (int x = 0; x < w; ++x)
                         {
-                            int num9 = x * 4;
                             int index = x * 4;
-                            byte[] bt = new byte[4];
-                            bt[0] = bts[num8 + num9 + 3];
-                            bt[1] = bts[num8 + num9 + 2];
-                            bt[2] = bts[num8 + num9 + 1];
-                            bt[3] = bts[num8 + num9];
-                            float f = BitConverter.ToSingle(bt, 0) / ushort.MaxValue;
-                            numPtr[index + 0] = (byte)(f * byte.MaxValue);
-                            numPtr[index + 1] = (byte)(f * byte.MaxValue);
-                            numPtr[index + 2] = (byte)(f * byte.MaxValue);
+                            if (normalized)
+                            {
+                                float f = BitConverter.ToSingle(bts, index + num) * 255;
+                                numPtr[index + 0] = (byte)(f);
+                                numPtr[index + 1] = (byte)(f);
+                                numPtr[index + 2] = (byte)(f);
+                            }
+                            else
+                            {
+                                float f = BitConverter.ToSingle(bts, index + num);
+                                numPtr[index + 0] = (byte)(f);
+                                numPtr[index + 1] = (byte)(f);
+                                numPtr[index + 2] = (byte)(f);
+                            }
                         }
                     }
                     bf.UnlockBits(df);
@@ -3510,18 +3571,14 @@ namespace AForge
                     Rectangle r6 = new Rectangle(0, 0, w, h);
                     for (int y = 0; y < h; y++)
                     {
-                        int num1 = y * stride;
+                        int num = y * stride;
                         for (int x = 0; x < w; x++)
                         {
-                            float f = BitConverter.ToSingle(bts, (y*stride)+(x*4));
-                            float num3 = f - rr.Min;
-                            if ((double)num3 < 0.0)
-                                num3 = 0.0f;
-                            int num4 = (int)((double)(num3 / rr.Max) * (double)byte.MaxValue);
-                            bitmap6.SetValue(x, y, 3, (ushort)byte.MaxValue);
-                            bitmap6.SetValue(x, y, 2, (ushort)num4);
-                            bitmap6.SetValue(x, y, 1, (ushort)num4);
-                            bitmap6.SetValue(x, y, 0, (ushort)num4);
+                            float f = BitConverter.ToSingle(bts, (num) + (x*4));
+                            bitmap6.SetValue(x, y, 3, byte.MaxValue);
+                            bitmap6.SetValue(x, y, 2, (byte)f);
+                            bitmap6.SetValue(x, y, 1, (byte)f);
+                            bitmap6.SetValue(x, y, 0, (byte)f);
                          }
                     }
                     return bitmap6;
@@ -3607,6 +3664,10 @@ namespace AForge
                     numChannels = 1;      // Grayscale, 16-bit
                     bytesPerChannel = 2;
                     break;
+                case PixelFormat.Format8bppIndexed:
+                    numChannels = 1;      // Grayscale, 8-bit
+                    bytesPerChannel = 1;
+                    break;
                 default:
                     throw new NotSupportedException("PixelFormat " + px + " is not supported.");
             }
@@ -3691,16 +3752,6 @@ namespace AForge
             {
                 CorrectTransparency();
             }
-            try
-            {
-                // Calculate and assign statistics from the byte data
-                this.stats = Statistics.FromBytes(this);
-            }
-            catch (Exception ex)
-            {
-                this.Stats = null;
-            }
-            
         }
 
         private void CorrectTransparency()

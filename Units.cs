@@ -531,14 +531,16 @@ namespace AForge
             else
                 return false;
         }
-        public bool Intersects(Point3D p)
+        /// <summary>
+        /// Checks if the volume intersects with the given point.
+        /// </summary>
+        /// <param name="point">The point to check.</param>
+        /// <returns>True if the point is inside the volume; otherwise, false.</returns>
+        public bool IntersectsWith(Point3D point)
         {
-            if ((p.X > Location.X && p.X < (Location.X + Width)) && (p.Y > Location.Y && p.Y < (Location.Y + Height)) && (p.Z > Location.Z && p.Z < (Location.Z + Depth)))
-            {
-                return true;
-            }
-            else
-                return false;
+            return (point.X >= Location.X && point.X <= Location.X + Width &&
+                    point.Y >= Location.Y && point.Y <= Location.Y + Height &&
+                    point.Z >= Location.Z && point.Z <= Location.Z + Depth);
         }
         public bool Intersects(RectangleD rec)
         {
