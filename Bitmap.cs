@@ -2357,6 +2357,27 @@ namespace AForge
 
         public static Bitmap GetRGBBitmap(Bitmap[] bfs, IntRange rr, IntRange rg, IntRange rb)
         {
+            if (bfs[0].PixelFormat == PixelFormat.Float)
+            {
+                Bitmap[] bf = new Bitmap[bfs.Length];
+                for (int i = 0; i < bf.Length; i++)
+                {
+                    bf[i] = (Bitmap)bfs[i].MemberwiseClone();
+                    bf[i].To8Bit(true);
+                }
+                LevelsLinear levelsLinear = new LevelsLinear();
+                levelsLinear.InRed = rr;
+                levelsLinear.InGreen = rg;
+                levelsLinear.InBlue = rb;
+                Bitmap bitmap = Bitmap.RGB8To24(new Bitmap[3]
+                {
+                    levelsLinear.Apply(bf[0]),
+                    levelsLinear.Apply(bf[1]),
+                    levelsLinear.Apply(bf[2])
+                });
+                bitmap.SwitchRedBlue();
+                return bitmap;
+            }
             if (bfs[0].BitsPerPixel > 8)
             {
                 if (bfs[0].isRGB)
@@ -2367,9 +2388,9 @@ namespace AForge
                     levelsLinear16bpp.InBlue = rb;
                     Bitmap bitmap = Bitmap.RGB16To48(new Bitmap[3]
                     {
-        levelsLinear16bpp.Apply(bfs[0]),
-        levelsLinear16bpp.Apply(bfs[1]),
-        levelsLinear16bpp.Apply(bfs[2])
+                        levelsLinear16bpp.Apply(bfs[0]),
+                        levelsLinear16bpp.Apply(bfs[1]),
+                        levelsLinear16bpp.Apply(bfs[2])
                     });
                     bitmap.SwitchRedBlue();
                     return bitmap;
@@ -2391,9 +2412,9 @@ namespace AForge
                 levelsLinear.InBlue = rb;
                 Bitmap bitmap = Bitmap.RGB8To24(new Bitmap[3]
                 {
-        levelsLinear.Apply(bfs[0]),
-        levelsLinear.Apply(bfs[1]),
-        levelsLinear.Apply(bfs[2])
+                    levelsLinear.Apply(bfs[0]),
+                    levelsLinear.Apply(bfs[1]),
+                    levelsLinear.Apply(bfs[2])
                 });
                 bitmap.SwitchRedBlue();
                 return bitmap;
@@ -2808,7 +2829,6 @@ namespace AForge
                 return numArray1;
             }
         }
-
 
         public static unsafe Bitmap GetBitmapRGBA(int w, int h, PixelFormat px, byte[] bts, bool normalized = false)
         {
@@ -3993,28 +4013,80 @@ namespace AForge
             return bm;
         }
         */
-        public void To8Bit()
+        public void To8Bit(bool normalized = false)
         {
-            Bitmap bitmap = AForge.Imaging.Image.Convert16bppTo8bpp(this);
-            this.Image = (UnmanagedImage)bitmap;
+            if (PixelFormat != PixelFormat.Float)
+            {
+                Bitmap bitmap = AForge.Imaging.Image.Convert16bppTo8bpp(this);
+                this.Image = (UnmanagedImage)bitmap;
+            }
+            else
+            {
+                Bitmap bm = new Bitmap(SizeX, SizeY, PixelFormat.Format8bppIndexed);
+                for (int y = 0; y < SizeY; y++)
+                {
+                    for (int x = 0; x < SizeX; x++)
+                    {
+                        if (!normalized)
+                        {
+                            float f = (float)GetValue(x, y);
+                            bm.SetValue(x, y, (byte)f);
+                        }
+                        else
+                        {
+                            float f = (float)GetValue(x, y);
+                            float s = (float)(f * byte.MaxValue);
+                            bm.SetValue(x, y, (byte)s);
+                        }
+                    }
+                }
+                Bytes = bm.Bytes;
+                PixelFormat = PixelFormat.Format8bppIndexed;
+            }
         }
 
-        public void To16Bit() => this.Image = (UnmanagedImage)AForge.Imaging.Image.Convert8bppTo16bpp(this);
-
+        public void To16Bit(bool normalized = false)
+        {
+            if(PixelFormat != PixelFormat.Float)
+                this.Image = (UnmanagedImage)AForge.Imaging.Image.Convert8bppTo16bpp(this);
+            else
+            {
+                Bitmap bm = new Bitmap(SizeX, SizeY, PixelFormat.Format16bppGrayScale);
+                for (int y = 0; y < SizeY; y++)
+                {
+                    for (int x = 0; x < SizeX; x++)
+                    {
+                        if (!normalized)
+                        {
+                            ushort f = (ushort)GetValue(x, y);
+                            bm.SetValue(x, y, f);
+                        }
+                        else
+                        {
+                            float f = (float)GetValue(x, y);
+                            ushort s = (ushort)(f * ushort.MaxValue);
+                            bm.SetValue(x, y, s);
+                        }
+                    }
+                }
+                Bytes = bm.Bytes;
+                PixelFormat = PixelFormat.Format16bppGrayScale;
+            }
+        }
         public void ToFloat()
         {
             Bitmap bm = new Bitmap(SizeX, SizeY, PixelFormat.Float);
+            bm.Stats = Statistics.FromBytes(this);
             for (int y = 0; y < SizeY; y++)
             {
                 for (int x = 0; x < SizeX; x++)
                 {
-                    float f = (float)GetValue(x, y);
+                    float f = GetValue(x, y) / bm.Stats[0].Max;
                     bm.SetValue(x, y, f);
                 }
             }
             PixelFormat = PixelFormat.Float;
-            Bytes = SwitchEndianness(bm.Bytes);
-            RotateFlip(RotateFlipType.Rotate180FlipNone);
+            Bytes = bm.Bytes;
         }
 
         public byte[] SwitchEndianness(byte[] bts)
