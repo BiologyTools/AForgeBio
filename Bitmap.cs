@@ -14,7 +14,6 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Threading.Channels;
-using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace AForge
 {
@@ -724,7 +723,6 @@ namespace AForge
         private float stackMean = 0;
         private float stackMedian = 0;
         private float mean = 0;
-        private float median = 0;
         private float meansum = 0;
         private float[] stackValues = new float[ushort.MaxValue];
         private int count = 0;
@@ -755,7 +753,26 @@ namespace AForge
         {
             get
             {
-                return median;
+                if (values != null)
+                {
+                    float max = float.MinValue;
+                    for (int i = 0; i < values.Length; i++)
+                    {
+                        if(values[i] > max)
+                            max = values[i];
+                    }
+                    return max;
+                }
+                else
+                {
+                    float max = float.MinValue;
+                    for (int i = 0; i < stackValues.Length; i++)
+                    {
+                        if (values[i] > max)
+                            max = values[i];
+                    }
+                    return max;
+                }
             }
         }
         public float StackMedian
@@ -942,10 +959,6 @@ namespace AForge
                     stats[2].mean = (float)sumB / (width * height);
                     if (rgbChannels == 4) stats[3].mean = (float)sumA / (width * height);
                 }
-
-                // Calculate median
-                CalculateMedian(stats, rgbChannels);
-
                 return stats;
             }
             catch (Exception ex)
@@ -972,32 +985,6 @@ namespace AForge
                 stat.values[(int)value]++;
             sum += System.Math.Abs(value);
         }
-
-        /// <summary>
-        /// Calculates median values for each channel in statistics array.
-        /// </summary>
-        private static void CalculateMedian(Statistics[] stats, int rgbChannels)
-        {
-            for (int i = 0; i < rgbChannels; i++)
-            {
-                int medianValue = 0;
-                int totalCount = stats[i].values.Sum();
-
-                // Find median by cumulative count
-                int cumulativeCount = 0;
-                for (int j = 0; j < stats[i].values.Length; j++)
-                {
-                    cumulativeCount += stats[i].values[j];
-                    if (cumulativeCount >= totalCount / 2)
-                    {
-                        medianValue = j;
-                        break;
-                    }
-                }
-                stats[i].median = medianValue;
-            }
-        }
-
         public static Statistics[] FromBytes(Bitmap bf)
         {
             return FromBytes(bf.Bytes, bf.SizeX, bf.SizeY, bf.RGBChannelsCount, bf.BitsPerPixel, bf.Stride, bf.PixelFormat);
@@ -1008,17 +995,6 @@ namespace AForge
             string name = System.Threading.Thread.CurrentThread.Name;
             list[name].Stats = FromBytes(list[name]);
             list.Remove(name);
-        }
-        public static void CalcStatistics(Bitmap bf)
-        {
-            System.Threading.Thread th = new System.Threading.Thread(FromBytes);
-            th.Name = bf.ID;
-            list.Add(th.Name.ToString(), bf);
-            th.Start();
-        }
-        public static void ClearCalcBuffer()
-        {
-            list.Clear();
         }
         public void AddStatistics(Statistics s)
         {
