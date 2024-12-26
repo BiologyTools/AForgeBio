@@ -2543,18 +2543,15 @@ namespace AForge
                         if (bi < 0)
                             bi = 0;
                         bi = bi / rr.Max;
-                        bt[row + indexRGBA + 2] = (byte)(ri * 255);//byte R
+                        bt[row + indexRGBA] = (byte)(ri * 255);//byte R
                         bt[row + indexRGBA + 1] = (byte)(gi * 255);//byte G
-                        bt[row + indexRGBA] = (byte)(bi * 255);//byte B
+                        bt[row + indexRGBA + 2] = (byte)(bi * 255);//byte B
                     }
                 }
             }
             bts = null;
             Bitmap bmp;
-            if (bfs.BitsPerPixel > 8)
-                return GetBitmap(w, h, w * 3, PixelFormat.Format24bppRgb, bt, bfs.Coordinate);
-            else
-                return GetBitmap(w, h, w * 3 * 2, PixelFormat.Format48bppRgb, bt, bfs.Coordinate);
+            return new Bitmap("", w, h, PixelFormat.Format24bppRgb, bt, bfs.Coordinate, 0);
         }
         /// It takes a list of buffer info objects and a list of channel objects and returns a bitmap of
         /// the emission data
@@ -2566,7 +2563,8 @@ namespace AForge
         /// @return A bitmap of the emission image.
         public static Bitmap GetEmissionBitmap(Bitmap[] bfs, Channel[] chans)
         {
-            Bitmap bm = new Bitmap(bfs[0].SizeX, bfs[0].SizeY, PixelFormat.Format24bppRgb);
+            Bitmap bm;
+            bm = new Bitmap(bfs[0].SizeX, bfs[0].SizeY, PixelFormat.Format24bppRgb);
             Merge m = new Merge(bm);
             for (int i = 0; i < chans.Length; i++)
             {
@@ -3863,48 +3861,54 @@ namespace AForge
         {
             if (RGBChannelsCount == 1)
                 return;
+
+            // Handle 24bpp RGB format (3 bytes per pixel: R, G, B)
             if (this.PixelFormat == PixelFormat.Format24bppRgb)
             {
                 for (int index1 = 0; index1 < this.SizeY; ++index1)
                 {
+                    // Iterate through the row using Stride (not just SizeX)
                     for (int index2 = 0; index2 < this.Stride; index2 += 3)
                     {
+                        // Swapping Red (index2) and Blue (index2 + 2)
                         int index3 = index1 * this.Stride + index2;
-                        byte num = this.bytes[index3 + 2];
-                        this.bytes[index3 + 2] = this.bytes[index3];
-                        this.bytes[index3] = num;
+                        byte temp = this.bytes[index3 + 2];  // Blue
+                        this.bytes[index3 + 2] = this.bytes[index3];  // Red
+                        this.bytes[index3] = temp;  // Assign Blue to Red
                     }
                 }
             }
+            // Handle 32bpp ARGB/RGB format (4 bytes per pixel: A, R, G, B)
             else if (this.PixelFormat == PixelFormat.Format32bppArgb || this.PixelFormat == PixelFormat.Format32bppRgb)
             {
                 for (int index4 = 0; index4 < this.SizeY; ++index4)
                 {
+                    // Iterate through the row using Stride (not just SizeX)
                     for (int index5 = 0; index5 < this.Stride; index5 += 4)
                     {
+                        // Swapping Red (index5 + 1) and Blue (index5 + 3)
                         int index6 = index4 * this.Stride + index5;
-                        byte num = this.bytes[index6 + 2];
-                        this.bytes[index6 + 2] = this.bytes[index6];
-                        this.bytes[index6] = num;
+                        byte temp = this.bytes[index6 + 2];  // Blue
+                        this.bytes[index6 + 2] = this.bytes[index6];  // Red
+                        this.bytes[index6] = temp;  // Assign Blue to Red
                     }
                 }
             }
-            else
+            // Handle 48bpp RGB format (6 bytes per pixel: R, G, B for each pixel, 2 bytes per channel)
+            else if (this.PixelFormat == PixelFormat.Format48bppRgb)
             {
-                if (this.PixelFormat != PixelFormat.Format48bppRgb)
-                    return;
                 for (int index7 = 0; index7 < this.SizeY; ++index7)
                 {
-                    int num1 = index7 * this.Stride;
+                    int num1 = index7 * this.Stride;  // Row offset
                     for (int index8 = 0; index8 < this.Stride; index8 += 6)
                     {
-                        int num2 = index8;
-                        byte num3 = this.bytes[num1 + num2];
-                        byte num4 = this.bytes[num1 + num2 + 1];
-                        this.bytes[num1 + num2] = this.bytes[num1 + num2 + 4];
-                        this.bytes[num1 + num2 + 1] = this.bytes[num1 + num2 + 5];
-                        this.bytes[num1 + num2 + 4] = num3;
-                        this.bytes[num1 + num2 + 5] = num4;
+                        // Swapping Red and Blue channels (each channel is 2 bytes)
+                        byte temp1 = this.bytes[num1 + index8];  // Red (2 bytes)
+                        byte temp2 = this.bytes[num1 + index8 + 1];  // Green (2 bytes)
+                        this.bytes[num1 + index8] = this.bytes[num1 + index8 + 4];  // Blue (2 bytes)
+                        this.bytes[num1 + index8 + 1] = this.bytes[num1 + index8 + 5];  // Blue (2 bytes)
+                        this.bytes[num1 + index8 + 4] = temp1;  // Red (2 bytes)
+                        this.bytes[num1 + index8 + 5] = temp2;  // Green (2 bytes)
                     }
                 }
             }

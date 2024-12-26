@@ -6,9 +6,9 @@
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
     <OutputType>Library</OutputType>
-    <Version>2.2.0</Version>
-    <AssemblyVersion>2.2.0</AssemblyVersion>
-    <FileVersion>2.2.0</FileVersion>
+    <Version>2.2.1</Version>
+    <AssemblyVersion>2.2.1</AssemblyVersion>
+    <FileVersion>2.2.1</FileVersion>
     <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
     <PackageId>AForgeBio</PackageId>
     <Title>AForgeBio</Title>
@@ -21,7 +21,7 @@
     <PackageRequireLicenseAcceptance>True</PackageRequireLicenseAcceptance>
     <Platforms>AnyCPU;x64;ARM64</Platforms>
     <PlatformTarget>AnyCPU</PlatformTarget>
-    <PackageReleaseNotes>Statistics calculation threads fix.</PackageReleaseNotes>
+    <PackageReleaseNotes>Get emission image fix.</PackageReleaseNotes>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
