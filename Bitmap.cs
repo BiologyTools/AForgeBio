@@ -73,7 +73,7 @@ namespace AForge
         }
         public static bool operator !=(ZCT c1, ZCT c2)
         {
-            if (c1.Z != c2.Z || c1.C != c2.C || c1.T != c2.T)
+            if (c1.Z == c2.Z && c1.C == c2.C && c1.T == c2.T)
                 return false;
             else
                 return true;
@@ -108,7 +108,7 @@ namespace AForge
         }
         public static bool operator !=(ZCTXY c1, ZCTXY c2)
         {
-            if (c1.Z != c2.Z || c1.C != c2.C || c1.T != c2.T || c1.X != c2.X || c1.Y != c2.Y)
+            if (c1.Z == c2.Z && c1.C == c2.C && c1.T == c2.T && c1.X == c2.X && c1.Y == c2.Y)
                 return false;
             else
                 return true;
