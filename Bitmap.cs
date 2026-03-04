@@ -12,6 +12,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading.Channels;
 
@@ -1369,7 +1370,7 @@ namespace AForge
         {
             get
             {
-                if (range.Length > 1)
+                if (range.Length > 2)
                     return range[2];
                 else
                     return range[0];
@@ -1886,7 +1887,7 @@ namespace AForge
             Bitmap bm;
             OtsuThreshold otsu = new OtsuThreshold();
             ExtractChannel ch = new ExtractChannel(0);
-            bm = ch.Apply(this.GetImageRGBA());
+            bm = ch.Apply(this.GetImageRGBA(littleEndian));
             otsu.ApplyInPlace(bm);
             this.Bytes = bm.bytes;
             this.PixelFormat = bm.PixelFormat;
@@ -2015,11 +2016,19 @@ namespace AForge
 
         public byte[] GetRGBABytes()
         {
-            return Bitmap.GetBitmapRGBA(this.SizeX, this.SizeY, this.PixelFormat, this.Bytes).Bytes;
+            return Bitmap.GetBitmapRGBA(this.SizeX, this.SizeY, this.PixelFormat, this.Bytes, LittleEndian).Bytes;
         }
-        public Bitmap GetImageRGBA(bool normalized = false)
+
+        public Bitmap GetImageRGBA(bool LittleEndian = true, bool normalized = false)
         {
-            return Bitmap.GetBitmapRGBA(this.SizeX, this.SizeY, this.PixelFormat, this.Bytes, normalized);
+            Bitmap bm = Bitmap.GetBitmapRGBA(this.SizeX, this.SizeY, this.PixelFormat, this.Bytes, LittleEndian, normalized);
+            if(!LittleEndian && !bm.isRGB)
+                bm.SwitchEndianness();
+            return bm;
+        }
+        public Bitmap GetImageRGB(bool LittleEndian, bool normalized = false)
+        {
+            return Bitmap.GetBitmapRGB(this.SizeX, this.SizeY, this.PixelFormat, this.Bytes, normalized);
         }
         public unsafe IntPtr Data
         {
@@ -2030,9 +2039,9 @@ namespace AForge
             }
         }
 
-        public IntPtr GetRGBData()
+        public IntPtr GetRGBData(bool littleendian = true)
         {
-            return Bitmap.GetRGB32Data(this.SizeX, this.SizeY, this.PixelFormat, this.bytes);
+            return Bitmap.GetRGB32Data(this.SizeX, this.SizeY, this.PixelFormat, this.bytes, littleendian);
         }
        
         public int PixelFormatSize
@@ -2799,174 +2808,561 @@ namespace AForge
                 return numArray1;
             }
         }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        static ushort Swap16(ushort v)
+    => (ushort)((v >> 8) | (v << 8));
 
-        public static unsafe Bitmap GetBitmapRGBA(int w, int h, PixelFormat px, byte[] bts, bool normalized = false)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        static uint Swap32(uint v)
+            => (v >> 24) |
+               ((v >> 8) & 0x0000FF00u) |
+               ((v << 8) & 0x00FF0000u) |
+               (v << 24);
+
+        public static unsafe Bitmap GetBitmapRGBA(
+    int w,
+    int h,
+    PixelFormat px,
+    byte[] bts,
+    bool normalized = false,
+    bool littleEndianData = true)
+        {
+            Bitmap bmp = new Bitmap(w, h, PixelFormat.Format32bppArgb);
+
+            Rectangle rect = new Rectangle(0, 0, w, h);
+            BitmapData bd = bmp.LockBits(rect, ImageLockMode.WriteOnly, bmp.PixelFormat);
+
+            bool swap = littleEndianData;
+
+            fixed (byte* srcBytes = bts)
+            {
+                byte* src8 = srcBytes;
+                ushort* src16 = (ushort*)srcBytes;
+                short* srcS16 = (short*)srcBytes;
+                uint* src32 = (uint*)srcBytes;
+                float* srcFloat = (float*)srcBytes;
+
+                for (int y = 0; y < h; y++)
+                {
+                    byte* dst = (byte*)bd.Scan0 + y * bd.Stride;
+
+                    switch (px)
+                    {
+                        //--------------------------------------------------
+                        // 8bpp
+                        //--------------------------------------------------
+                        case PixelFormat.Format8bppIndexed:
+                            {
+                                int row = y * w;
+                                for (int x = 0; x < w; x++)
+                                {
+                                    byte v = src8[row + x];
+                                    int d = x * 4;
+
+                                    dst[d + 0] = v;
+                                    dst[d + 1] = v;
+                                    dst[d + 2] = v;
+                                    dst[d + 3] = 255;
+                                }
+                                break;
+                            }
+
+                        //--------------------------------------------------
+                        // 16bpp GRAY
+                        //--------------------------------------------------
+                        case PixelFormat.Format16bppGrayScale:
+                            {
+                                int row = y * w;
+
+                                for (int x = 0; x < w; x++)
+                                {
+                                    ushort v = src16[row + x];
+                                    if (swap) v = Swap16(v);
+
+                                    byte g = (byte)(v >> 8);
+
+                                    int d = x * 4;
+                                    dst[d + 0] = g;
+                                    dst[d + 1] = g;
+                                    dst[d + 2] = g;
+                                    dst[d + 3] = 255;
+                                }
+                                break;
+                            }
+
+                        //--------------------------------------------------
+                        // 24bpp RGB
+                        //--------------------------------------------------
+                        case PixelFormat.Format24bppRgb:
+                            {
+                                byte* row = src8 + y * w * 3;
+
+                                for (int x = 0; x < w; x++)
+                                {
+                                    int s = x * 3;
+                                    int d = x * 4;
+
+                                    dst[d + 0] = row[s + 0];
+                                    dst[d + 1] = row[s + 1];
+                                    dst[d + 2] = row[s + 2];
+                                    dst[d + 3] = 255;
+                                }
+                                break;
+                            }
+
+                        //--------------------------------------------------
+                        // 32bpp ARGB
+                        //--------------------------------------------------
+                        case PixelFormat.Format32bppArgb:
+                            {
+                                byte* row = src8 + y * w * 4;
+
+                                if (!swap)
+                                    Buffer.MemoryCopy(row, dst, w * 4, w * 4);
+                                else
+                                {
+                                    for (int x = 0; x < w; x++)
+                                    {
+                                        uint v = Swap32(src32[y * w + x]);
+                                        ((uint*)dst)[x] = v;
+                                    }
+                                }
+                                break;
+                            }
+
+                        //--------------------------------------------------
+                        // 48bpp RGB
+                        //--------------------------------------------------
+                        case PixelFormat.Format48bppRgb:
+                            {
+                                ushort* row = src16 + y * w * 3;
+
+                                for (int x = 0; x < w; x++)
+                                {
+                                    int s = x * 3;
+                                    int d = x * 4;
+
+                                    ushort r = row[s + 0];
+                                    ushort g = row[s + 1];
+                                    ushort b = row[s + 2];
+
+                                    if (swap)
+                                    {
+                                        r = Swap16(r);
+                                        g = Swap16(g);
+                                        b = Swap16(b);
+                                    }
+
+                                    dst[d + 2] = (byte)(r >> 8);
+                                    dst[d + 1] = (byte)(g >> 8);
+                                    dst[d + 0] = (byte)(b >> 8);
+                                    dst[d + 3] = 255;
+                                }
+                                break;
+                            }
+
+                        //--------------------------------------------------
+                        // FLOAT
+                        //--------------------------------------------------
+                        case PixelFormat.Float:
+                            {
+                                uint* row = src32 + y * w;
+
+                                for (int x = 0; x < w; x++)
+                                {
+                                    uint raw = row[x];
+                                    if (swap) raw = Swap32(raw);
+
+                                    float v = *(float*)&raw;
+
+                                    if (normalized)
+                                        v *= 255f;
+
+                                    byte g = (byte)System.Math.Clamp(v, 0f, 255f);
+
+                                    int d = x * 4;
+                                    dst[d + 0] = g;
+                                    dst[d + 1] = g;
+                                    dst[d + 2] = g;
+                                    dst[d + 3] = 255;
+                                }
+                                break;
+                            }
+
+                        //--------------------------------------------------
+                        // SIGNED SHORT
+                        //--------------------------------------------------
+                        case PixelFormat.Short:
+                            {
+                                short* row = srcS16 + y * w;
+
+                                for (int x = 0; x < w; x++)
+                                {
+                                    short v = row[x];
+                                    if (swap) v = (short)Swap16((ushort)v);
+
+                                    float norm =
+                                        (v - short.MinValue) /
+                                        (float)(short.MaxValue - short.MinValue);
+
+                                    byte g = (byte)(norm * 255f);
+
+                                    int d = x * 4;
+                                    dst[d + 0] = g;
+                                    dst[d + 1] = g;
+                                    dst[d + 2] = g;
+                                    dst[d + 3] = 255;
+                                }
+                                break;
+                            }
+
+                        default:
+                            bmp.UnlockBits(bd);
+                            bmp.Dispose();
+                            throw new NotSupportedException($"Pixelformat {px} not supported.");
+                    }
+                }
+            }
+
+            bmp.UnlockBits(bd);
+            return bmp;
+        }
+        public static unsafe Bitmap GetBitmapRGB(
+    int w,
+    int h,
+    PixelFormat px,
+    byte[] bts,
+    bool normalized = false)
+        {
+            Bitmap bmp = new Bitmap(w, h, PixelFormat.Format32bppArgb);
+            Rectangle rect = new Rectangle(0, 0, w, h);
+            BitmapData bd = bmp.LockBits(rect, ImageLockMode.WriteOnly, bmp.PixelFormat);
+
+            try
+            {
+                for (int y = 0; y < h; y++)
+                {
+                    byte* dst = (byte*)bd.Scan0 + y * bd.Stride;
+
+                    switch (px)
+                    {
+                        case PixelFormat.Format8bppIndexed:
+                            {
+                                int srcRow = y * w;
+                                for (int x = 0; x < w; x++)
+                                {
+                                    byte v = bts[srcRow + x];
+                                    int d = x * 4;
+                                    dst[d + 0] = v;   // B
+                                    dst[d + 1] = v;   // G
+                                    dst[d + 2] = v;   // R
+                                    dst[d + 3] = 255; // A
+                                }
+                                break;
+                            }
+
+                        case PixelFormat.Format16bppGrayScale:
+                            {
+                                int srcRow = y * w * 2;
+                                for (int x = 0; x < w; x++)
+                                {
+                                    ushort v16 = BitConverter.ToUInt16(bts, srcRow + x * 2);
+                                    byte v8 = (byte)(v16 * 255 / ushort.MaxValue);
+                                    int d = x * 4;
+                                    dst[d + 0] = v8;
+                                    dst[d + 1] = v8;
+                                    dst[d + 2] = v8;
+                                    dst[d + 3] = 255;
+                                }
+                                break;
+                            }
+
+                        case PixelFormat.Format24bppRgb:
+                            {
+                                int srcRow = y * w * 3;
+                                for (int x = 0; x < w; x++)
+                                {
+                                    int s = srcRow + x * 3;
+                                    int d = x * 4;
+                                    dst[d + 0] = bts[s + 0]; // B
+                                    dst[d + 1] = bts[s + 1]; // G
+                                    dst[d + 2] = bts[s + 2]; // R
+                                    dst[d + 3] = 255;
+                                }
+                                break;
+                            }
+
+                        case PixelFormat.Format32bppArgb:
+                            {
+                                int srcRow = y * w * 4;
+                                for (int x = 0; x < w; x++)
+                                {
+                                    int s = srcRow + x * 4;
+                                    int d = x * 4;
+                                    dst[d + 0] = bts[s + 0];
+                                    dst[d + 1] = bts[s + 1];
+                                    dst[d + 2] = bts[s + 2];
+                                    dst[d + 3] = bts[s + 3];
+                                }
+                                break;
+                            }
+
+                        case PixelFormat.Format48bppRgb:
+                            {
+                                int srcRow = y * w * 6;
+                                for (int x = 0; x < w; x++)
+                                {
+                                    int s = srcRow + x * 6;
+                                    int d = x * 4;
+                                    byte b = (byte)(BitConverter.ToUInt16(bts, s + 0) * 255 / ushort.MaxValue);
+                                    byte g = (byte)(BitConverter.ToUInt16(bts, s + 2) * 255 / ushort.MaxValue);
+                                    byte r = (byte)(BitConverter.ToUInt16(bts, s + 4) * 255 / ushort.MaxValue);
+                                    dst[d + 0] = b;
+                                    dst[d + 1] = g;
+                                    dst[d + 2] = r;
+                                    dst[d + 3] = 255;
+                                }
+                                break;
+                            }
+
+                        case PixelFormat.Float:
+                            {
+                                int srcRow = y * w * 4;
+                                for (int x = 0; x < w; x++)
+                                {
+                                    float f = BitConverter.ToSingle(bts, srcRow + x * 4);
+                                    byte v = (byte)(normalized ? f * 255f : f);
+                                    int d = x * 4;
+                                    dst[d + 0] = v;
+                                    dst[d + 1] = v;
+                                    dst[d + 2] = v;
+                                    dst[d + 3] = 255;
+                                }
+                                break;
+                            }
+
+                        case PixelFormat.Short:
+                            {
+                                int srcRow = y * w * 2;
+                                for (int x = 0; x < w; x++)
+                                {
+                                    short s16 = BitConverter.ToInt16(bts, srcRow + x * 2);
+                                    byte v = (byte)(System.Math.Abs(s16) * 255 / short.MaxValue);
+                                    int d = x * 4;
+                                    dst[d + 0] = v;
+                                    dst[d + 1] = v;
+                                    dst[d + 2] = v;
+                                    dst[d + 3] = 255;
+                                }
+                                break;
+                            }
+
+                        default:
+                            throw new NotSupportedException($"PixelFormat {px} not supported");
+                    }
+                }
+
+                return bmp;
+            }
+            finally
+            {
+                bmp.UnlockBits(bd);
+            }
+        }
+
+        public static unsafe IntPtr GetRGB32Data(
+    int w,
+    int h,
+    PixelFormat px,
+    byte[] bts,
+    bool littleEndian)
         {
             switch (px)
             {
                 case PixelFormat.Format8bppIndexed:
-                    Bitmap bitmap1 = new Bitmap(w, h, PixelFormat.Format32bppArgb);
-                    Rectangle r1 = new Rectangle(0, 0, w, h);
-                    BitmapData d1 = bitmap1.LockBits(r1, ImageLockMode.ReadWrite, bitmap1.PixelFormat);
-                    for (int index1 = 0; index1 < h; ++index1)
                     {
-                        byte* numPtr = (byte*)((IntPtr)(void*)d1.Scan0 + index1 * d1.Stride);
-                        int num1 = index1 * w;
-                        for (int index2 = 0; index2 < w; ++index2)
+                        Bitmap bmp = new Bitmap(w, h, PixelFormat.Format32bppArgb);
+                        var rect = new Rectangle(0, 0, w, h);
+                        var d = bmp.LockBits(rect, ImageLockMode.ReadWrite, bmp.PixelFormat);
+
+                        for (int y = 0; y < h; y++)
                         {
-                            int num2 = index2;
-                            int index3 = index2 * 4;
-                            byte bt = bts[num1 + num2];
-                            numPtr[index3 + 3] = byte.MaxValue;
-                            numPtr[index3 + 2] = bt;
-                            numPtr[index3 + 1] = bt;
-                            numPtr[index3] = bt;
+                            byte* dst = (byte*)d.Scan0 + y * d.Stride;
+                            int srcRow = y * w;
+
+                            for (int x = 0; x < w; x++)
+                            {
+                                byte v = bts[srcRow + x];
+                                int o = x * 4;
+
+                                dst[o + 0] = v;
+                                dst[o + 1] = v;
+                                dst[o + 2] = v;
+                                dst[o + 3] = 255;
+                            }
                         }
+
+                        bmp.UnlockBits(d);
+                        return d.Scan0;
                     }
-                    bitmap1.UnlockBits(d1);
-                    return bitmap1;
+
                 case PixelFormat.Format16bppGrayScale:
-                    Bitmap bitmap2 = new Bitmap(w, h, PixelFormat.Format32bppArgb);
-                    Rectangle r2 = new Rectangle(0, 0, w, h);
-                    BitmapData d2 = bitmap2.LockBits(r2, ImageLockMode.ReadWrite, bitmap2.PixelFormat);
-                    for (int index4 = 0; index4 < h; ++index4)
                     {
-                        byte* numPtr = (byte*)((IntPtr)(void*)d2.Scan0 + index4 * d2.Stride);
-                        int num3 = index4 * w * 2;
-                        for (int index5 = 0; index5 < w; ++index5)
+                        Bitmap bmp = new Bitmap(w, h, PixelFormat.Format32bppArgb);
+                        var rect = new Rectangle(0, 0, w, h);
+                        var d = bmp.LockBits(rect, ImageLockMode.ReadWrite, bmp.PixelFormat);
+
+                        for (int y = 0; y < h; y++)
                         {
-                            int num4 = index5 * 2;
-                            int index6 = index5 * 4;
-                            int num5 = (int)((double)BitConverter.ToUInt16(bts, num3 + num4) / (double)ushort.MaxValue * (double)byte.MaxValue);
-                            numPtr[index6 + 3] = byte.MaxValue;
-                            numPtr[index6 + 2] = (byte)num5;
-                            numPtr[index6 + 1] = (byte)num5;
-                            numPtr[index6] = (byte)num5;
+                            byte* dst = (byte*)d.Scan0 + y * d.Stride;
+                            int srcRow = y * w * 2;
+
+                            for (int x = 0; x < w; x++)
+                            {
+                                ushort v16 = ReadUInt16(bts, srcRow + x * 2, littleEndian);
+                                byte v8 = (byte)(v16 >> 8);
+
+                                int o = x * 4;
+                                dst[o + 0] = v8;
+                                dst[o + 1] = v8;
+                                dst[o + 2] = v8;
+                                dst[o + 3] = 255;
+                            }
                         }
+
+                        bmp.UnlockBits(d);
+                        return d.Scan0;
                     }
-                    bitmap2.UnlockBits(d2);
-                    return bitmap2;
+
                 case PixelFormat.Format24bppRgb:
-                    Bitmap bitmap3 = new Bitmap(w, h, PixelFormat.Format32bppArgb);
-                    Rectangle r3 = new Rectangle(0, 0, w, h);
-                    BitmapData d3 = bitmap3.LockBits(r3, ImageLockMode.ReadWrite, bitmap3.PixelFormat);
-                    for (int index7 = 0; index7 < h; ++index7)
                     {
-                        byte* numPtr = (byte*)((IntPtr)(void*)d3.Scan0 + index7 * d3.Stride);
-                        int num6 = index7 * w * 3;
-                        for (int index8 = 0; index8 < w; ++index8)
+                        Bitmap bmp = new Bitmap(w, h, PixelFormat.Format32bppArgb);
+                        var rect = new Rectangle(0, 0, w, h);
+                        var d = bmp.LockBits(rect, ImageLockMode.ReadWrite, bmp.PixelFormat);
+
+                        for (int y = 0; y < h; y++)
                         {
-                            int num7 = index8 * 3;
-                            int index9 = index8 * 4;
-                            numPtr[index9 + 3] = byte.MaxValue;
-                            numPtr[index9 + 2] = bts[num6 + num7 + 2];
-                            numPtr[index9 + 1] = bts[num6 + num7 + 1];
-                            numPtr[index9] = bts[num6 + num7];
+                            byte* dst = (byte*)d.Scan0 + y * d.Stride;
+                            int srcRow = y * w * 3;
+
+                            for (int x = 0; x < w; x++)
+                            {
+                                int s = srcRow + x * 3;
+                                int o = x * 4;
+
+                                dst[o + 0] = bts[s + 0];
+                                dst[o + 1] = bts[s + 1];
+                                dst[o + 2] = bts[s + 2];
+                                dst[o + 3] = 255;
+                            }
                         }
+
+                        bmp.UnlockBits(d);
+                        return d.Scan0;
                     }
-                    bitmap3.UnlockBits(d3);
-                    return bitmap3;
+
                 case PixelFormat.Format32bppArgb:
-                    Bitmap bitmap4 = new Bitmap(w, h, PixelFormat.Format32bppArgb);
-                    Rectangle r4 = new Rectangle(0, 0, w, h);
-                    BitmapData d4 = bitmap4.LockBits(r4, ImageLockMode.ReadWrite, bitmap4.PixelFormat);
-                    for (int index10 = 0; index10 < h; ++index10)
+                case PixelFormat.Format32bppRgb:
                     {
-                        byte* numPtr = (byte*)((IntPtr)(void*)d4.Scan0 + index10 * d4.Stride);
-                        int num8 = index10 * w * 4;
-                        for (int index11 = 0; index11 < w; ++index11)
-                        {
-                            int num9 = index11 * 4;
-                            int index12 = index11 * 4;
-                            numPtr[index12 + 3] = bts[num8 + num9 + 3];
-                            numPtr[index12 + 2] = bts[num8 + num9 + 2];
-                            numPtr[index12 + 1] = bts[num8 + num9 + 1];
-                            numPtr[index12] = bts[num8 + num9];
-                        }
+                        fixed (byte* p = bts)
+                            return (IntPtr)p;
                     }
-                    bitmap4.UnlockBits(d4);
-                    return bitmap4;
+
                 case PixelFormat.Format48bppRgb:
-                    Bitmap bitmap5 = new Bitmap(w, h, PixelFormat.Format32bppArgb);
-                    Rectangle r5 = new Rectangle(0, 0, w, h);
-                    BitmapData d5 = bitmap5.LockBits(r5, ImageLockMode.ReadWrite, bitmap5.PixelFormat);
-                    for (int index13 = 0; index13 < h; ++index13)
                     {
-                        byte* numPtr = (byte*)((IntPtr)(void*)d5.Scan0 + index13 * d5.Stride);
-                        int num10 = index13 * w * 6;
-                        for (int index14 = 0; index14 < w; ++index14)
+                        Bitmap bmp = new Bitmap(w, h, PixelFormat.Format32bppArgb);
+                        var rect = new Rectangle(0, 0, w, h);
+                        var d = bmp.LockBits(rect, ImageLockMode.ReadWrite, bmp.PixelFormat);
+
+                        for (int y = 0; y < h; y++)
                         {
-                            int num11 = index14 * 6;
-                            int index15 = index14 * 4;
-                            int num12 = (int)((double)BitConverter.ToUInt16(bts, num10 + num11) / (double)ushort.MaxValue * (double)byte.MaxValue);
-                            int num13 = (int)((double)BitConverter.ToUInt16(bts, num10 + num11 + 2) / (double)ushort.MaxValue * (double)byte.MaxValue);
-                            int num14 = (int)((double)BitConverter.ToUInt16(bts, num10 + num11 + 4) / (double)ushort.MaxValue * (double)byte.MaxValue);
-                            numPtr[index15 + 3] = byte.MaxValue;
-                            numPtr[index15 + 2] = (byte)num12;
-                            numPtr[index15 + 1] = (byte)num13;
-                            numPtr[index15] = (byte)num14;
+                            byte* dst = (byte*)d.Scan0 + y * d.Stride;
+                            int srcRow = y * w * 6;
+
+                            for (int x = 0; x < w; x++)
+                            {
+                                int s = srcRow + x * 6;
+
+                                byte r = (byte)(ReadUInt16(bts, s + 0, littleEndian) >> 8);
+                                byte g = (byte)(ReadUInt16(bts, s + 2, littleEndian) >> 8);
+                                byte b = (byte)(ReadUInt16(bts, s + 4, littleEndian) >> 8);
+
+                                int o = x * 4;
+
+                                dst[o + 0] = b;
+                                dst[o + 1] = g;
+                                dst[o + 2] = r;
+                                dst[o + 3] = 255;
+                            }
                         }
+
+                        bmp.UnlockBits(d);
+                        return d.Scan0;
                     }
-                    bitmap5.UnlockBits(d5);
-                    return bitmap5;
+
                 case PixelFormat.Float:
-                    Bitmap bf = new Bitmap(w, h, PixelFormat.Format32bppArgb);
-                    Rectangle rf = new Rectangle(0, 0, w, h);
-                    BitmapData df = bf.LockBits(rf, ImageLockMode.ReadWrite, bf.PixelFormat);
-                    for (int y = 0; y < h; ++y)
                     {
-                        byte* numPtr = (byte*)((IntPtr)(void*)df.Scan0 + y * df.Stride);
-                        int num = y * w * 4;
-                        for (int x = 0; x < w; ++x)
+                        Bitmap bmp = new Bitmap(w, h, PixelFormat.Format32bppArgb);
+                        var rect = new Rectangle(0, 0, w, h);
+                        var d = bmp.LockBits(rect, ImageLockMode.ReadWrite, bmp.PixelFormat);
+
+                        Statistics[] sts = Statistics.FromBytes(bmp);
+
+                        for (int y = 0; y < h; y++)
                         {
-                            int index = x * 4;
-                            if (normalized)
+                            byte* dst = (byte*)d.Scan0 + y * d.Stride;
+                            int srcRow = y * w * 4;
+
+                            for (int x = 0; x < w; x++)
                             {
-                                float f = BitConverter.ToSingle(bts, index + num) * 255;
-                                numPtr[index + 0] = (byte)(f);
-                                numPtr[index + 1] = (byte)(f);
-                                numPtr[index + 2] = (byte)(f);
-                                numPtr[index + 3] = byte.MaxValue;
-                            }
-                            else
-                            {
-                                float f = BitConverter.ToSingle(bts, index + num);
-                                numPtr[index + 0] = (byte)(f);
-                                numPtr[index + 1] = (byte)(f);
-                                numPtr[index + 2] = (byte)(f);
-                                numPtr[index + 3] = byte.MaxValue;
+                                float f = ReadFloat32(bts, srcRow + x * 4, littleEndian);
+
+                                if (f < sts[0].Min)
+                                    f = 0;
+
+                                byte v =
+                                    (byte)(f / sts[0].Max * 255f);
+
+                                int o = x * 4;
+
+                                dst[o + 0] = v;
+                                dst[o + 1] = v;
+                                dst[o + 2] = v;
+                                dst[o + 3] = 255;
                             }
                         }
+
+                        bmp.UnlockBits(d);
+                        return d.Scan0;
                     }
-                    bf.UnlockBits(df);
-                    return bf;
-                case PixelFormat.Short:
-                    Bitmap bm = new Bitmap(w, h, PixelFormat.Format32bppArgb);
-                    Rectangle rec = new Rectangle(0, 0, w, h);
-                    BitmapData bd = bm.LockBits(rec, ImageLockMode.ReadWrite, bm.PixelFormat);
-                    for (int y = 0; y < h; ++y)
-                    {
-                        byte* numPtr = (byte*)((IntPtr)(void*)bd.Scan0 + y * bd.Stride);
-                        int num3 = y * w * 2;
-                        for (int x = 0; x < w; ++x)
-                        {
-                            int num4 = x * 2;
-                            int index = x * 4;
-                            byte[] bt = new byte[2];
-                            bt[0] = bts[num3 + num4 + 1];
-                            bt[1] = bts[num3 + num4];
-                            float num5 = ((float)BitConverter.ToInt16(bt, 0) / (float)short.MaxValue) * byte.MaxValue;
-                            numPtr[index] = (byte)num5;
-                            numPtr[index + 1] = (byte)num5;
-                            numPtr[index + 2] = (byte)num5;
-                            numPtr[index + 3] = byte.MaxValue;
-                        }
-                    }
-                    bm.UnlockBits(bd);
-                    return bm;
+
                 default:
-                    throw new NotSupportedException("Pixelformat " + px.ToString() + " is not supported.");
+                    throw new NotSupportedException($"Pixelformat {px} not supported.");
             }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        static ushort ReadUInt16(byte[] data, int offset, bool littleEndian)
+        {
+            if (BitConverter.IsLittleEndian == littleEndian)
+                return BitConverter.ToUInt16(data, offset);
+
+            return (ushort)((data[offset] << 8) | data[offset + 1]);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        static float ReadFloat32(byte[] data, int offset, bool littleEndian)
+        {
+            if (BitConverter.IsLittleEndian == littleEndian)
+                return BitConverter.ToSingle(data, offset);
+
+            uint v =
+                ((uint)data[offset] << 24) |
+                ((uint)data[offset + 1] << 16) |
+                ((uint)data[offset + 2] << 8) |
+                data[offset + 3];
+
+            return BitConverter.Int32BitsToSingle((int)v);
         }
 
         public static unsafe IntPtr GetRGB32Data(int w, int h, PixelFormat px, byte[] bts)
@@ -3084,7 +3480,6 @@ namespace AForge
                     throw new NotSupportedException("Pixelformat " + px.ToString() + " is not supported.");
             }
         }
-
         public static unsafe Bitmap GetRGB24Data(int w, int h, PixelFormat px, byte[] bts)
         {
             switch (px)
@@ -3788,7 +4183,7 @@ namespace AForge
 
         public static Bitmap To24Bit(Bitmap b) => Bitmap.GetRGB24Data(b.Width, b.Height, b.PixelFormat, b.Bytes);
 
-        public static Bitmap To32Bit(Bitmap b) => b.GetImageRGBA();
+        public static Bitmap To32Bit(Bitmap b) => b.GetImageRGBA(b.LittleEndian);
 
         public static Bitmap SwitchChannels(Bitmap image, int c1, int c2)
         {
