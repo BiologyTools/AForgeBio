@@ -353,20 +353,25 @@ namespace AForge.Imaging
                     break;
 
                 case PixelFormat.Format48bppRgb:
-                    // create new color 24 bpp image
+                    // create new color 48 bpp image
                     newImage = new AForge.Bitmap( width, height, PixelFormat.Format24bppRgb );
                     layers = 3;
                     break;
 
                 case PixelFormat.Format64bppArgb:
-                    // create new color 32 bpp image
+                    // create new color 64 bpp image
                     newImage = new AForge.Bitmap( width, height, PixelFormat.Format32bppArgb );
                     layers = 4;
                     break;
 
                 case PixelFormat.Format64bppPArgb:
-                    // create new color 32 bpp image
+                    // create new color 64 bpp image
                     newImage = new AForge.Bitmap( width, height, PixelFormat.Format32bppPArgb );
+                    layers = 4;
+                    break;
+                case PixelFormat.Format32bppArgb:
+                    // create new color 32 bpp image
+                    newImage = new AForge.Bitmap(width, height, PixelFormat.Format32bppArgb);
                     layers = 4;
                     break;
 

@@ -737,14 +737,17 @@ namespace AForge
         public float Min
         {
             get { return min; }
+            set {  min = value; }
         }
         public float Max
         {
             get { return max; }
+            set { min = value; }
         }
         public double Mean
         {
             get { return mean; }
+            set { mean = (float)value; }
         }
         public int BitsPerPixel
         {
@@ -4235,11 +4238,18 @@ namespace AForge
             return bm;
         }
         */
+        ExtractChannel extractChannel = new ExtractChannel((short)0);
         public void To8Bit(bool normalized = false)
         {
             if (PixelFormat != PixelFormat.Float)
             {
-                Bitmap bitmap = AForge.Imaging.Image.Convert16bppTo8bpp(this);
+                Bitmap bitmap;
+                if (PixelFormat == PixelFormat.Format32bppArgb)
+                {
+                    bitmap = (Bitmap)extractChannel.Apply(this.Image);
+                }
+                else
+                    bitmap = AForge.Imaging.Image.Convert16bppTo8bpp(this);
                 this.Image = (UnmanagedImage)bitmap;
             }
             else
