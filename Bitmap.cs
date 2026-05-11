@@ -2822,6 +2822,19 @@ namespace AForge
                ((v << 8) & 0x00FF0000u) |
                (v << 24);
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static int GetSourceRowStride(byte[] data, int height, int expectedRowBytes)
+        {
+            if (height > 0 && data != null && data.Length % height == 0)
+            {
+                int stride = data.Length / height;
+                if (stride >= expectedRowBytes)
+                    return stride;
+            }
+
+            return expectedRowBytes;
+        }
+
         public static unsafe Bitmap GetBitmapRGBA(
     int w,
     int h,
@@ -2875,11 +2888,12 @@ namespace AForge
                         //--------------------------------------------------
                         case PixelFormat.Format16bppGrayScale:
                             {
-                                int row = y * w;
+                                int rowStride = GetSourceRowStride(bts, h, w * 2);
+                                int row = y * rowStride;
 
                                 for (int x = 0; x < w; x++)
                                 {
-                                    ushort v = src16[row + x];
+                                    ushort v = src16[(row >> 1) + x];
                                     if (swap) v = Swap16(v);
 
                                     byte g = (byte)(v >> 8);
@@ -2898,7 +2912,8 @@ namespace AForge
                         //--------------------------------------------------
                         case PixelFormat.Format24bppRgb:
                             {
-                                byte* row = src8 + y * w * 3;
+                                int rowStride = GetSourceRowStride(bts, h, w * 3);
+                                byte* row = src8 + y * rowStride;
 
                                 for (int x = 0; x < w; x++)
                                 {
@@ -2918,7 +2933,8 @@ namespace AForge
                         //--------------------------------------------------
                         case PixelFormat.Format32bppArgb:
                             {
-                                byte* row = src8 + y * w * 4;
+                                int rowStride = GetSourceRowStride(bts, h, w * 4);
+                                byte* row = src8 + y * rowStride;
 
                                 if (!swap)
                                     Buffer.MemoryCopy(row, dst, w * 4, w * 4);
@@ -2938,7 +2954,8 @@ namespace AForge
                         //--------------------------------------------------
                         case PixelFormat.Format48bppRgb:
                             {
-                                ushort* row = src16 + y * w * 3;
+                                int rowStride = GetSourceRowStride(bts, h, w * 6);
+                                ushort* row = (ushort*)(srcBytes + y * rowStride);
 
                                 for (int x = 0; x < w; x++)
                                 {
@@ -3066,7 +3083,7 @@ namespace AForge
 
                         case PixelFormat.Format16bppGrayScale:
                             {
-                                int srcRow = y * w * 2;
+                                int srcRow = y * GetSourceRowStride(bts, h, w * 2);
                                 for (int x = 0; x < w; x++)
                                 {
                                     ushort v16 = BitConverter.ToUInt16(bts, srcRow + x * 2);
@@ -3082,7 +3099,7 @@ namespace AForge
 
                         case PixelFormat.Format24bppRgb:
                             {
-                                int srcRow = y * w * 3;
+                                int srcRow = y * GetSourceRowStride(bts, h, w * 3);
                                 for (int x = 0; x < w; x++)
                                 {
                                     int s = srcRow + x * 3;
@@ -3097,7 +3114,7 @@ namespace AForge
 
                         case PixelFormat.Format32bppArgb:
                             {
-                                int srcRow = y * w * 4;
+                                int srcRow = y * GetSourceRowStride(bts, h, w * 4);
                                 for (int x = 0; x < w; x++)
                                 {
                                     int s = srcRow + x * 4;
@@ -3112,7 +3129,7 @@ namespace AForge
 
                         case PixelFormat.Format48bppRgb:
                             {
-                                int srcRow = y * w * 6;
+                                int srcRow = y * GetSourceRowStride(bts, h, w * 6);
                                 for (int x = 0; x < w; x++)
                                 {
                                     int s = srcRow + x * 6;
@@ -3393,14 +3410,15 @@ namespace AForge
                     }
                     bitmap1.UnlockBits(d1);
                     return d1.Scan0;
-                case PixelFormat.Format16bppGrayScale:
+                        case PixelFormat.Format16bppGrayScale:
                     Bitmap bitmap2 = new Bitmap(w, h, PixelFormat.Format32bppArgb);
                     Rectangle r2 = new Rectangle(0, 0, w, h);
                     BitmapData d2 = bitmap2.LockBits(r2, ImageLockMode.ReadWrite, bitmap2.PixelFormat);
+                    int rowStride16 = GetSourceRowStride(bts, h, w * 2);
                     for (int index4 = 0; index4 < h; ++index4)
                     {
                         byte* numPtr = (byte*)((IntPtr)(void*)d2.Scan0 + index4 * d2.Stride);
-                        int num3 = index4 * w * 2;
+                        int num3 = index4 * rowStride16;
                         for (int index5 = 0; index5 < w; ++index5)
                         {
                             int num4 = index5 * 2;
@@ -3442,17 +3460,18 @@ namespace AForge
                     Bitmap bitmap4 = new Bitmap(w, h, PixelFormat.Format32bppArgb);
                     Rectangle r4 = new Rectangle(0, 0, w, h);
                     BitmapData d4 = bitmap4.LockBits(r4, ImageLockMode.ReadWrite, bitmap4.PixelFormat);
+                    int rowStride48 = GetSourceRowStride(bts, h, w * 6);
                     for (int index10 = 0; index10 < h; ++index10)
                     {
                         byte* numPtr = (byte*)((IntPtr)(void*)d4.Scan0 + index10 * d4.Stride);
-                        int num8 = index10 * w * 6;
+                        int num8 = index10 * rowStride48;
                         for (int index11 = 0; index11 < w; ++index11)
                         {
                             int num9 = index11 * 6;
                             int index12 = index11 * 4;
-                            int num10 = (int)((double)BitConverter.ToUInt16(bts, num8 + num9) / (double)byte.MaxValue);
-                            int num11 = (int)((double)BitConverter.ToUInt16(bts, num8 + num9 + 2) / (double)byte.MaxValue);
-                            int num12 = (int)((double)BitConverter.ToUInt16(bts, num8 + num9 + 4) / (double)byte.MaxValue);
+                            int num10 = (int)((double)BitConverter.ToUInt16(bts, num8 + num9) * 255d / ushort.MaxValue);
+                            int num11 = (int)((double)BitConverter.ToUInt16(bts, num8 + num9 + 2) * 255d / ushort.MaxValue);
+                            int num12 = (int)((double)BitConverter.ToUInt16(bts, num8 + num9 + 4) * 255d / ushort.MaxValue);
                             numPtr[index12 + 3] = byte.MaxValue;
                             numPtr[index12 + 2] = (byte)num10;
                             numPtr[index12 + 1] = (byte)num11;
