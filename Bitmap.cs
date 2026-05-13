@@ -2019,12 +2019,24 @@ namespace AForge
 
         public byte[] GetRGBABytes()
         {
-            return Bitmap.GetBitmapRGBA(this.SizeX, this.SizeY, this.PixelFormat, this.Bytes, LittleEndian).Bytes;
+            return Bitmap.GetBitmapRGBA(
+                this.SizeX,
+                this.SizeY,
+                this.PixelFormat,
+                this.Bytes,
+                normalized: false,
+                littleEndianData: LittleEndian).Bytes;
         }
 
         public Bitmap GetImageRGBA(bool LittleEndian = true, bool normalized = false)
         {
-            Bitmap bm = Bitmap.GetBitmapRGBA(this.SizeX, this.SizeY, this.PixelFormat, this.Bytes, LittleEndian, normalized);
+            Bitmap bm = Bitmap.GetBitmapRGBA(
+                this.SizeX,
+                this.SizeY,
+                this.PixelFormat,
+                this.Bytes,
+                normalized: normalized,
+                littleEndianData: LittleEndian);
             if(!LittleEndian && !bm.isRGB)
                 bm.SwitchEndianness();
             return bm;
@@ -2848,7 +2860,7 @@ namespace AForge
             Rectangle rect = new Rectangle(0, 0, w, h);
             BitmapData bd = bmp.LockBits(rect, ImageLockMode.WriteOnly, bmp.PixelFormat);
 
-            bool swap = littleEndianData;
+            bool swap = !littleEndianData;
 
             fixed (byte* srcBytes = bts)
             {
@@ -3903,7 +3915,7 @@ namespace AForge
             this.SizeX = r.Width;
             this.SizeY = r.Height;
         }
-        public static byte[] ConvertToInterleaved(byte[] nonInterleaved, PixelFormat px)
+        public static byte[] ConvertToInterleaved(byte[] nonInterleaved, PixelFormat px, int width = 0, int height = 0)
         {
             int numChannels;
             int bytesPerChannel;
@@ -3934,22 +3946,52 @@ namespace AForge
                     throw new NotSupportedException("PixelFormat " + px + " is not supported.");
             }
 
-            int numPixels = nonInterleaved.Length / (numChannels * bytesPerChannel);
             byte[] interleaved = new byte[nonInterleaved.Length];
+            int bytesPerPixel = numChannels * bytesPerChannel;
+            int numPixels = nonInterleaved.Length / bytesPerPixel;
 
-            // Interleaving logic
+            // Prefer row-aware planar conversion when dimensions are known and
+            // the buffer contains full channel planes with per-row padding.
+            if (width > 0 && height > 0 && numChannels > 0)
+            {
+                int expectedRowBytes = width * bytesPerChannel;
+                if (nonInterleaved.Length % numChannels == 0)
+                {
+                    int planeStride = nonInterleaved.Length / numChannels;
+                    if (planeStride % height == 0)
+                    {
+                        int rowStride = planeStride / height;
+                        if (rowStride >= expectedRowBytes)
+                        {
+                            byte[] rowAwareInterleaved = new byte[nonInterleaved.Length];
+                            for (int y = 0; y < height; y++)
+                            {
+                                for (int x = 0; x < width; x++)
+                                {
+                                    int targetIndex = ((y * width) + x) * bytesPerPixel;
+                                    for (int c = 0; c < numChannels; c++)
+                                    {
+                                        int sourceIndex = (c * planeStride) + (y * rowStride) + (x * bytesPerChannel);
+                                        for (int b = 0; b < bytesPerChannel; b++)
+                                            rowAwareInterleaved[targetIndex + (c * bytesPerChannel) + b] = nonInterleaved[sourceIndex + b];
+                                    }
+                                }
+                            }
+                            return rowAwareInterleaved;
+                        }
+                    }
+                }
+            }
+
+            // Fallback: flat planar conversion.
             for (int i = 0; i < numPixels; i++)
             {
                 for (int c = 0; c < numChannels; c++)
                 {
                     int sourceIndex = i * bytesPerChannel + c * numPixels * bytesPerChannel;
                     int targetIndex = (i * numChannels + c) * bytesPerChannel;
-
-                    // Copy each channel's bytes (1 byte for 8-bit channels, 2 bytes for 16-bit channels)
                     for (int b = 0; b < bytesPerChannel; b++)
-                    {
                         interleaved[targetIndex + b] = nonInterleaved[sourceIndex + b];
-                    }
                 }
             }
 
@@ -3991,7 +4033,7 @@ namespace AForge
             else if (!interleaved && littleEndian)
             {
                 //DM-004
-                this.Bytes = ConvertToInterleaved(bytes, pixelFormat);
+                this.Bytes = ConvertToInterleaved(bytes, pixelFormat, w, h);
             }
             else if (interleaved && !littleEndian)
             {
@@ -4001,9 +4043,10 @@ namespace AForge
             else // !interleaved && !littleEndian
             {
                 //OK CMU-2.svs
-                this.Bytes = ConvertToInterleaved(bytes, pixelFormat);
+                this.Bytes = ConvertToInterleaved(bytes, pixelFormat, w, h);
                 ReverseByteOrderByPixelFormat();
             }
+            this.littleEndian = littleEndian;
             // Special case for 32-bit ARGB format: Check and correct transparency
             if (px == PixelFormat.Format32bppArgb)
             {
@@ -4030,12 +4073,49 @@ namespace AForge
         // Helper method to reverse byte order based on pixel format
         private void ReverseByteOrderByPixelFormat()
         {
-            int bytesPerPixel = GetPixelFormatSize(this.pixelFormat) / 8;
-
-            // Reverse each pixel's byte order
-            for (int i = 0; i < this.Bytes.Length; i += bytesPerPixel)
+            switch (this.pixelFormat)
             {
-                Array.Reverse(this.Bytes, i, bytesPerPixel);
+                case PixelFormat.Format16bppGrayScale:
+                case PixelFormat.Short:
+                    SwapComponentBytesPerRow(2, 1);
+                    break;
+
+                case PixelFormat.Format48bppRgb:
+                    SwapComponentBytesPerRow(2, 3);
+                    break;
+
+                case PixelFormat.Format64bppArgb:
+                case PixelFormat.Format64bppPArgb:
+                    SwapComponentBytesPerRow(2, 4);
+                    break;
+
+                case PixelFormat.Float:
+                case PixelFormat.UInt:
+                case PixelFormat.Int:
+                    SwapComponentBytesPerRow(4, 1);
+                    break;
+
+                default:
+                    // Packed 8-bit-per-channel formats do not need byte swapping.
+                    break;
+            }
+        }
+
+        private void SwapComponentBytesPerRow(int bytesPerComponent, int componentCount)
+        {
+            int bytesPerPixel = bytesPerComponent * componentCount;
+            int expectedRowBytes = this.SizeX * bytesPerPixel;
+            int rowStride = GetSourceRowStride(this.Bytes, this.SizeY, expectedRowBytes);
+
+            for (int y = 0; y < this.SizeY; y++)
+            {
+                int rowBase = y * rowStride;
+                for (int x = 0; x < this.SizeX; x++)
+                {
+                    int pixelBase = rowBase + (x * bytesPerPixel);
+                    for (int c = 0; c < componentCount; c++)
+                        Array.Reverse(this.Bytes, pixelBase + (c * bytesPerComponent), bytesPerComponent);
+                }
             }
         }
 
